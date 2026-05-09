@@ -488,6 +488,64 @@ transitions:
 | `{{lastOutput.campo}}` | Campo de um JSON no lastOutput |
 | `{{outputs.campo}}` | Alias de `lastOutput.campo` |
 | `{{methodology.name}}` | Campo de uma metodologia carregada |
+| `{{metadata.key}}` | Campo dos metadados do contexto |
+| `{{file:caminho/arquivo.md}}` | Conteúdo de um arquivo injetado literalmente |
+
+**`{{file:...}}` — injeção de arquivos:**
+
+O caminho é relativo ao `basePath` do executor (default: `process.cwd()`) ou absoluto. Arquivo não encontrado produz `[file not found: caminho]` em vez de falhar.
+
+```yaml
+states:
+  - id: analyze
+    prompt: |
+      {{file:.gates/prompts/refactor-header.md}}
+
+      Analise o código abaixo seguindo as regras acima:
+      {{lastOutput}}
+
+      Target: {{inputs.target}}
+```
+
+**`{% if %}`/`{% else %}`/`{% endif %}` — blocos condicionais:**
+
+Processados antes das interpolações, suportam nesting arbitrário. Sem `eval` ou `new Function` — expressões seguras.
+
+```yaml
+states:
+  - id: review
+    prompt: |
+      Revise este código.
+
+      {% if inputs.mode == "strict" %}
+      Seja rigoroso. Aponte TODOS os problemas, mesmo os menores.
+      {% else %}
+      Foque apenas nos problemas críticos e de segurança.
+      {% endif %}
+
+      {% if context.errors.length > 0 %}
+      ATENÇÃO: ocorreram erros nos estados anteriores.
+      {% endif %}
+
+      {% if inputs.verbose %}
+      Explique o raciocínio de cada decisão em detalhe.
+      {% endif %}
+
+      Código: {{lastOutput}}
+```
+
+**Condições suportadas em `{% if %}`:**
+
+| Expressão | Descrição |
+|---|---|
+| `inputs.key` | Verdadeiro se o valor é truthy |
+| `!inputs.key` / `not inputs.key` | Negação |
+| `inputs.key == "valor"` | Igualdade de string |
+| `inputs.key != "valor"` | Desigualdade de string |
+| `inputs.count > 3` | Comparação numérica (`>`, `<`, `>=`, `<=`) |
+| `context.errors.length > 0` | Condição sobre o contexto de execução |
+| `context.results.length >= 2` | Número de resultados acumulados |
+| `lastOutput.status == "ok"` | Campo de um JSON do output anterior |
 
 **Campos de estado:**
 
