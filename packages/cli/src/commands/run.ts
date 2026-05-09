@@ -168,7 +168,7 @@ const doRun = (prompt: string, options: RunOptions) =>
 export const run = (prompt: string, options: RunOptions): void => {
   Effect.runPromise(
     doRun(prompt, options).pipe(
-      Effect.catch_((e) => Effect.sync(() => console.error("Error:", e)))
+      Effect.catch((e: unknown) => Effect.sync(() => console.error("Error:", e)))
     )
   );
 };

@@ -59,7 +59,7 @@ const serializeFrontmatter = (metadata: Record<string, string>, body: string): s
 export const loadWikiIndex = (
   rootPath: string = "."
 ): Effect.Effect<WikiIndex, WikiError> =>
-  Effect.try_({
+  Effect.try({
     try: () => {
       const wikiPath = path.join(rootPath, INDEX_FILE);
 
@@ -76,14 +76,14 @@ export const loadWikiIndex = (
 
       return index;
     },
-    catch: (error) => new WikiError("INDEX_LOAD_ERROR", String(error)),
+    catch: (error: unknown) => new WikiError("INDEX_LOAD_ERROR", String(error)),
   });
 
 export const saveWikiIndex = (
   index: WikiIndex,
   rootPath: string = "."
 ): Effect.Effect<void, WikiError> =>
-  Effect.try_({
+  Effect.try({
     try: () => {
       const wikiDir = path.join(rootPath, WIKI_DIR);
       if (!fs.existsSync(wikiDir)) {
@@ -93,14 +93,14 @@ export const saveWikiIndex = (
       const wikiPath = path.join(rootPath, INDEX_FILE);
       fs.writeFileSync(wikiPath, JSON.stringify(index, null, 2));
     },
-    catch: (error) => new WikiError("INDEX_SAVE_ERROR", String(error)),
+    catch: (error: unknown) => new WikiError("INDEX_SAVE_ERROR", String(error)),
   });
 
 export const getEntry = (
   entryPath: string,
   rootPath: string = "."
 ): Effect.Effect<WikiEntry, WikiError> =>
-  Effect.try_({
+  Effect.try({
     try: () => {
       const fullPath = path.join(rootPath, WIKI_DIR, entryPath);
 
@@ -121,14 +121,14 @@ export const getEntry = (
         modified: stats.mtime.getTime(),
       };
     },
-    catch: (error) => new WikiError("ENTRY_LOAD_ERROR", String(error)),
+    catch: (error: unknown) => new WikiError("ENTRY_LOAD_ERROR", String(error)),
   });
 
 export const saveEntry = (
   entry: WikiEntry,
   rootPath: string = "."
 ): Effect.Effect<void, WikiError> =>
-  Effect.try_({
+  Effect.try({
     try: () => {
       const wikiDir = path.join(rootPath, WIKI_DIR);
       if (!fs.existsSync(wikiDir)) {
@@ -149,7 +149,7 @@ export const saveEntry = (
       const content = serializeFrontmatter(metadata, entry.content);
       fs.writeFileSync(fullPath, content, "utf-8");
     },
-    catch: (error) => new WikiError("ENTRY_SAVE_ERROR", String(error)),
+    catch: (error: unknown) => new WikiError("ENTRY_SAVE_ERROR", String(error)),
   });
 
 export const searchWiki = (

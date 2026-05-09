@@ -83,7 +83,7 @@ export const createLLMAwareExecutor = (
           if (!content) return "[LLM] No response content";
           try { return JSON.parse(content); } catch { return content; }
         }).pipe(
-          Effect.catch_((e) => Effect.succeed(`[LLM] Error: ${e.message}`))
+          Effect.catch((e: unknown) => Effect.succeed(`[LLM] Error: ${String(e)}`))
         );
       }
 

@@ -72,6 +72,6 @@ export const runBash = (
         const { stdout, stderr } = await execAsync(command);
         return { stdout, stderr, exitCode: 0 };
       },
-      catch: (error) => new BashSafetyError("EXEC_ERROR", String(error)),
+      catch: (error: unknown) => new BashSafetyError("EXEC_ERROR", String(error)),
     });
   });

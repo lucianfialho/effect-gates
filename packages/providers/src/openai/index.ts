@@ -85,7 +85,7 @@ export const makeOpenAIProvider = (config: OpenAIConfig): Provider => {
             cost: inputCost + outputCost,
           } satisfies ChatResponse;
         },
-        catch: (error) => ({
+        catch: (error: unknown) => ({
           code: "OPENAI_ERROR",
           message: error instanceof Error ? error.message : String(error),
         } satisfies ProviderError),

@@ -190,7 +190,7 @@ export const makeLocalSandbox = (config?: SandboxConfig): Effect.Effect<Sandbox>
   const exists = (filePath: string): Effect.Effect<boolean, SandboxError> =>
     Effect.tryPromise(() => fs.promises.access(filePath)).pipe(
       Effect.map(() => true),
-      Effect.catch_(() => Effect.succeed(false))
+      Effect.catch(() => Effect.succeed(false))
     );
 
   return Effect.succeed({ run, writeFile, readFile, listDir, exists, cwd });

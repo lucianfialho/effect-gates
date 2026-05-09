@@ -20,7 +20,7 @@ export const readLarge = (
   filePath: string,
   options: ReadLargeOptions = {}
 ): Effect.Effect<string, ReadLargeError> =>
-  Effect.try_({
+  Effect.try({
     try: () => {
       const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
       const encoding = options.encoding ?? "utf-8";

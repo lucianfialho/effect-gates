@@ -181,13 +181,15 @@ export const withCompaction = <A, E>(
     const shouldCompact = yield* triggerCheck;
 
     if (shouldCompact) {
-      yield* Effect.forkChild(
-        compaction.pipe(
-          Effect.catch_((e) =>
-            Effect.sync(() => console.error("[compaction] failed:", e.message))
+      yield* Effect.sync(() => {
+        Effect.runFork(
+          compaction.pipe(
+            Effect.catch((e: CompactionError) =>
+              Effect.sync(() => console.error("[compaction] failed:", e.message))
+            )
           )
-        )
-      );
+        );
+      });
     }
 
     return result;

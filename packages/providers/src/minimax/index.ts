@@ -135,7 +135,7 @@ export const makeMiniMaxProvider = (config: MiniMaxConfig): Provider => {
             reasoningDetails,
           } satisfies ChatResponse;
         },
-        catch: (error) => ({
+        catch: (error: unknown) => ({
           code: "MINIMAX_ERROR",
           message: error instanceof Error ? error.message : String(error),
         } satisfies ProviderError),

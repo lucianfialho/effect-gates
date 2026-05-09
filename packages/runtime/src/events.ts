@@ -46,7 +46,8 @@ export const makeAgentEvents = (): Effect.Effect<AgentEvents> =>
   });
 
 export const createEventFilter = (types: AgentEventType[]) =>
-  Stream.filter((event: AgentEvent) => types.includes(event.type));
+  (stream: Stream.Stream<AgentEvent, never>): Stream.Stream<AgentEvent, never> =>
+    stream.pipe(Stream.filter((event) => types.includes(event.type)));
 
 export const mergeEvents = (
   streams: Array<Stream.Stream<AgentEvent, never>>

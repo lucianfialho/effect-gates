@@ -190,6 +190,7 @@ export class SessionHistory {
         entries: [...current.entries, entry],
         leafId: id,
         byId: newById,
+        createdAt: current.createdAt,
       });
 
       return id;
@@ -234,6 +235,7 @@ appendCompaction(input: {
         entries: [...current.entries, entry],
         leafId: id,
         byId: newById,
+        createdAt: current.createdAt,
       });
 
       return id;
@@ -263,6 +265,7 @@ appendCompaction(input: {
         entries: [...current.entries, entry],
         leafId: id,
         byId: newById,
+        createdAt: current.createdAt,
       });
 
       return id;

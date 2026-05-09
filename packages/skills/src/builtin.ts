@@ -62,7 +62,7 @@ export const readSkill: Skill = {
 
       const content = yield* Effect.tryPromise({
         try: () => fs.promises.readFile(filePath, "utf-8"),
-        catch: (error) => ({
+        catch: (error: unknown) => ({
           code: "READ_ERROR",
           message: String(error),
         } satisfies SkillError),
@@ -92,7 +92,7 @@ export const writeSkill: Skill = {
           await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
           await fs.promises.writeFile(filePath, content, "utf-8");
         },
-        catch: (error) => ({
+        catch: (error: unknown) => ({
           code: "WRITE_ERROR",
           message: String(error),
         } satisfies SkillError),
