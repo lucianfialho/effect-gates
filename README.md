@@ -107,6 +107,35 @@ const memory = yield* makeInMemorySandbox();
 
 `makeLocalSandbox` rejeita paths que escapam do `cwd` via `PERMISSION_DENIED`.
 
+### Isolamento de credenciais
+
+Por padrão, `makeLocalSandbox` passa `process.env` inteiro para os processos. Com `isolated: true`, só as chaves de base seguras (`PATH`, `HOME`, `LANG`, etc.) mais as entradas explícitas em `env` e `credentials` são passadas — sem vazamento acidental entre agentes.
+
+```typescript
+// Agente A — só acessa GitHub
+const sandboxA = yield* makeLocalSandbox({
+  isolated: true,
+  credentials: { GITHUB_TOKEN: process.env.GITHUB_TOKEN! },
+});
+
+// Agente B — só acessa Linear
+const sandboxB = yield* makeLocalSandbox({
+  isolated: true,
+  credentials: { LINEAR_TOKEN: process.env.LINEAR_TOKEN! },
+});
+// GITHUB_TOKEN nunca chega ao sandboxB
+```
+
+`SandboxConfig`:
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `cwd` | string | Diretório de trabalho (default: `process.cwd()`) |
+| `timeout` | number | Timeout de comandos em ms (default: 30000) |
+| `env` | Record | Variáveis adicionais sobrepostas ao ambiente |
+| `credentials` | Record | Secrets do agente — sempre sobrepostos por último |
+| `isolated` | boolean | Quando `true`, bloqueia o `process.env` completo |
+
 ### Erros
 
 ```typescript
@@ -202,6 +231,50 @@ const read = makeReadTool(sandbox);  // Tool { name, description, parameters, ex
 ```
 
 Ferramentas disponíveis: `read`, `write`, `bash`, `glob`, `grep`, `edit`.
+
+### `defineCommand` — CLIs externas como tools isoladas
+
+`defineCommand` cria uma `Tool` que expõe um executável externo (git, npm, docker…) ao LLM com ambiente completamente isolado. Diferente de `makeBashTool`, que aceita qualquer comando shell, `defineCommand`:
+
+- Roda **apenas o executável declarado** (sem shell intermediário)
+- Aceita um **allowlist de subcomandos** — tenta fora → `toolError` imediato
+- Passa **somente** `PATH`/`HOME` + as entradas de `env` — `process.env` nunca vaza
+
+```typescript
+import { defineCommand } from "@gates-effect/runtime";
+
+const git = defineCommand({
+  name: "git",
+  description: "Operações git no repositório",
+  executable: "git",
+  allowedSubcommands: ["status", "log", "diff", "add", "commit", "push", "pull"],
+  baseArgs: ["--no-pager"],       // prefixados a todo comando
+  env: {
+    GIT_AUTHOR_NAME: "Agent",
+    GIT_AUTHOR_EMAIL: "agent@local",
+  },
+  cwd: process.cwd(),
+  timeout: 30000,
+});
+
+// O LLM chama com: { args: "log --oneline -5" }
+// Executa: git --no-pager log --oneline -5
+
+// Subcommand bloqueado:
+// { args: "push --force" } → toolError: "push" is not allowed
+```
+
+`CommandConfig`:
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `name` | string | Nome da tool como o LLM a vê |
+| `executable` | string | Binário a executar (`git`, `npm`, `gh`) |
+| `allowedSubcommands` | string[] | Primeiro argumento permitido — bloqueia o resto |
+| `baseArgs` | string[] | Args sempre prefixados antes dos do LLM |
+| `env` | Record | Env vars disponíveis (isolado de `process.env`) |
+| `cwd` | string | Diretório de trabalho |
+| `timeout` | number | Timeout em ms (default: 30000) |
 
 ### Sessões com persistência em arquivo
 
@@ -503,6 +576,117 @@ const m = yield* loadMethodology("solid");           // carrega de .gates/method
 const texto = formatMethodologyForPrompt(m);         // formata para injetar em um prompt
 ```
 
+### Connector system
+
+Connectors empacotam CLIs externas (via `defineCommand`), skills e documentação numa unidade instalável. Ficam em `.gates/connectors/<nome>/` e são carregados automaticamente com suas credenciais.
+
+#### Estrutura de um connector
+
+```
+.gates/connectors/github/
+  connector.yaml        ← manifesto declarativo
+  skills/
+    criar-pr.yaml       ← skills bundled com o connector
+  docs/
+    workflow.md         ← documentação injetável em prompts
+```
+
+#### `connector.yaml`
+
+```yaml
+name: github
+description: Integração com GitHub via gh CLI
+version: "1.0"
+
+requiredCredentials:
+  - GH_TOKEN            # avisa no console se faltar
+
+commands:
+  - name: gh
+    description: "GitHub CLI — PRs, issues, repos"
+    executable: gh
+    allowedSubcommands:
+      - pr
+      - issue
+      - repo
+      - api
+      - release
+    env:
+      GH_TOKEN: "{{credentials.GH_TOKEN}}"   # injeção de credencial
+
+  - name: git
+    description: "Git operations"
+    executable: git
+    allowedSubcommands:
+      - status
+      - log
+      - diff
+      - add
+      - commit
+      - push
+      - pull
+    baseArgs:
+      - "--no-pager"
+
+skills:
+  - skills/criar-pr.yaml
+
+docs:
+  - docs/workflow.md
+```
+
+`{{credentials.KEY}}` é resolvido no carregamento com as credenciais passadas. Chave ausente → string vazia (não falha).
+
+#### API
+
+```typescript
+import { loadConnectors, loadConnector } from "@gates-effect/skills";
+
+// Carregar todos os connectors de um diretório
+const registry = yield* loadConnectors(".gates/connectors", {
+  GH_TOKEN: process.env.GH_TOKEN!,
+  GIT_AUTHOR_NAME: "Lucian",
+});
+
+// registry.connectors              — Map<string, Connector>
+// registry.allTools()              — Map<string, Tool> (todas as tools)
+// registry.allSkills()             — SkillConfig[] (todas as skills)
+// registry.allDocs()               — string com docs concatenadas para contexto
+
+// Carregar um connector específico
+const connector = yield* loadConnector(".gates/connectors/github", credentials);
+// connector.tools, connector.skills, connector.docs, connector.missingCredentials
+```
+
+#### Combinando com toolsMap
+
+```typescript
+import { toolsMap } from "@gates-effect/runtime";
+import { loadConnectors } from "@gates-effect/skills";
+
+const sandbox = yield* makeSandbox("local", { isolated: true });
+const registry = yield* loadConnectors(".gates/connectors", credentials);
+
+// Merge: sandbox tools + connector tools
+const allTools = new Map([
+  ...toolsMap(sandbox),
+  ...registry.allTools(),
+]);
+
+// Injetar docs dos connectors no system prompt
+const systemPrompt = `Você é um assistente de desenvolvimento.\n\n${registry.allDocs()}`;
+```
+
+#### `Connector`
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `name` | string | Nome do connector |
+| `tools` | `Tool[]` | Tools geradas dos `commands` |
+| `skills` | `SkillConfig[]` | Skills bundled |
+| `docs` | string | Docs concatenadas |
+| `missingCredentials` | string[] | Credenciais declaradas mas não fornecidas |
+
 ---
 
 ## `@gates-effect/gates`
@@ -654,6 +838,15 @@ Effect.runSync(programaSincrono);
       skill.yaml
       SKILL.md           # documentação opcional
       schemas/           # schemas JSON opcionais
+  connectors/
+    github/
+      connector.yaml     # manifesto: commands, skills, docs, requiredCredentials
+      skills/
+        criar-pr.yaml
+      docs/
+        workflow.md
+    linear/
+      connector.yaml
   wiki/
     index.json
     decisoes/
