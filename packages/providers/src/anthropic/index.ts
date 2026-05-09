@@ -121,12 +121,18 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
             body.tool_choice = { type: "auto" };
           }
 
+          // OAuth tokens (oat01) use Bearer auth; standard API keys use x-api-key
+          const isOAuthToken = config.apiKey.startsWith("sk-ant-oat");
+          const authHeaders: Record<string, string> = isOAuthToken
+            ? { "Authorization": `Bearer ${config.apiKey}` }
+            : { "x-api-key": config.apiKey };
+
           const response = await fetch(`${baseUrl}/messages`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-api-key": config.apiKey,
               "anthropic-version": "2023-06-01",
+              ...authHeaders,
             },
             body: JSON.stringify(body),
           });
