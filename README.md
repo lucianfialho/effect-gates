@@ -239,6 +239,96 @@ Monorepo with pnpm workspaces. Each package is independently typechecked.
 
 ---
 
+## Changelog
+
+### [0.2.0] — 2026-05-09
+
+#### New features
+
+**Reasoning models**
+- `AnthropicConfig.thinking: { enabled, budgetTokens? }` — extended thinking via Claude 3.7+ (streams `reasoningDetails` in `ChatResponse`)
+- `OpenAIConfig.reasoningEffort: "low" | "medium" | "high"` — native support for o1/o3 models (disables temperature/max_tokens automatically)
+
+**Patch engine** (`@gates-effect/runtime`)
+- `applyPatch(content, patch)` — applies unified diffs with ±10 line fuzzy offset matching
+- `makePatchTool(sandbox)` — agent tool for complex multi-location code edits
+
+**Script safety** (`@gates-effect/gates`)
+- `checkScript(script, config)` — validates LLM-generated JS/TS before execution
+- Blocks: `eval()`, `new Function()`, `process.exit()`, `child_process` imports, template literal injection
+- `preprocessScript(script)` — check pipeline; `sanitizeTemplateLiterals(script)` — escapes backtick issues
+
+**Semantic search** (`@gates-effect/gates`)
+- `buildIndex(rootPath, openAiApiKey)` — chunks codebase by function/class boundaries + generates OpenAI embeddings
+- `searchIndex(index, query, apiKey, { topK })` — cosine similarity search with natural language queries
+- `formatResults(results)` — formats results as Markdown code blocks for LLM context injection
+- Indexes `.ts`, `.tsx`, `.js`, `.mjs`, `.py`, `.go`, `.rs`, `.md` files
+
+**Meeting → Issues pipeline**
+- `@gates-effect/harness-ui` sidebar — split layout (36 cols) with `Ctrl+S` toggle, auto-opens on skill completion
+- `sidebar_update` SSE event for real-time sidebar population from server or skills
+- Google Workspace connector (`.gates/connectors/google-workspace/`) via `gws` CLI — `gws_calendar`, `gws_meet`, `gws_drive`
+- GitHub connector (`.gates/connectors/github/`) via `gh` CLI
+- Skills: `list-meetings`, `extract-action-items`, `create-github-issues`
+- Harness `meeting-issues` — transcript → structured action items → GitHub Issues (no code execution)
+
+**Sessions list** (`@gates-effect/harness-ui`)
+- `GET /api/sessions` — lists persisted sessions from FileSessionStore with preview + relative timestamps
+- `POST /api/sessions { resumeSessionId }` — resume any previous session
+- `DELETE /api/sessions/:id` — delete session
+- `SessionsList` TUI screen: `↑↓` navigate, `↵` resume, `d` delete
+- Accessible via `s` key in harness select and `/sessions` command in chat
+
+**Connector system extensions**
+- `tools.js` / `tools.mjs` support in connector directories — `async (credentials) => Tool[]` factory
+- Programmatic tools merged with declarative `commands` from `connector.yaml`
+
+#### Breaking changes / removals
+
+- **`@gates-effect/wiki` removed** — replaced by semantic search. Index `.md` files in `.gates/docs/` with `buildIndex` for natural language search instead of keyword matching.
+
+---
+
+### [0.1.0] — 2026-05-09
+
+#### `@gates-effect/harness-ui`
+- Terminal UI with sessions list, skill visualization, tool calling display, SSE streaming
+- Skills in chat: `/skill <name>`, `/skills`, `/sessions`, `/clear`
+- Server: Hono HTTP + SSE on localhost:3583
+
+#### `@gates-effect/skills`
+- `{{file:path}}` file injection and `{% if/else/endif %}` conditionals in prompts
+- `onEvent` callback in `SkillExecutorConfig` for real-time streaming
+- `makeTaskQueue`, `makeFileTaskQueue`, `makeTaskRunner` — parallel task execution with dependency graph
+- Connector system: `loadConnectors`, `connector.yaml`, `{{credentials.KEY}}` injection
+- `SkillExecutorConfig.basePath` for `{{file:...}}` resolution
+
+#### `@gates-effect/runtime`
+- `CompactionScope` — compaction per role and per call (`PromptOptions.compaction`)
+- `defineCommand` — wrap any CLI as an isolated tool with subcommand allowlist
+- `createHarness` session history between prompts (was stateless)
+- `AgentLoopConfig.toolConcurrency: "sequential" | "unbounded" | number`
+
+#### `@gates-effect/sandbox`
+- `SandboxConfig.isolated` + `credentials` — blocks `process.env` passthrough per agent
+
+#### `@gates-effect/providers`
+- Tool calling on Anthropic (content blocks), OpenAI (role: tool messages), MiniMax
+- All three providers with unified `provider.chat(messages, tools?)` interface
+
+#### Migration to Effect v4
+- `effect@4.0.0-beta.64` across all packages; `@effect/schema` removed
+- API renames: `either→result`, `catchAll→catch`, `fork→forkChild`, `try→try_`
+- Tags `Left/Right → Failure/Success`, props `.left/.right → .failure/.success`
+
+#### Bug fixes and security
+- Message duplication in context, `PubSub.publish` never executing, `firstKeptEntryId` wrong
+- Shell injection in `makeGlobTool`/`makeGrepTool` → `spawn` with arg arrays
+- `new Function()` in `evaluateGuard`/`evaluateWhen` → direct comparisons
+- Path traversal in `makeLocalSandbox` → `assertWithinCwd`
+
+---
+
 ## License
 
 MIT
