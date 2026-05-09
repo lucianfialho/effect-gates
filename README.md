@@ -1051,6 +1051,104 @@ Ou defina `apiKey` diretamente no harness config.
 
 ---
 
+## Exemplo: Meeting → Issues
+
+Pipeline completa que converte transcrições do Google Meet em GitHub Issues usando o harness `meeting-issues`.
+
+### Setup
+
+```bash
+# 1. Instalar a Google Workspace CLI
+npm install -g @googleworkspace/cli
+
+# 2. Autenticar
+gws auth login
+gws auth export --unmasked > ~/.gates/google-credentials.json
+
+# 3. Variáveis de ambiente
+export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=~/.gates/google-credentials.json
+export GH_TOKEN=ghp_...          # GitHub token com permissão de issues
+
+# 4. Iniciar
+harness-ui --dir /meu/projeto
+# → selecionar "Meeting Issues"
+```
+
+### Fluxo no chat
+
+```
+❯ /skill list-meetings
+
+  ✓ gws_meet   5 conference records encontrados
+
+  [conferenceRecords/abc123]  Team Standup  —  2026-05-09  —  8 participantes
+  [conferenceRecords/def456]  Sprint Review  —  2026-05-08  —  12 participantes
+  ...
+
+❯ /skill extract-action-items conference_id=abc123 transcript_id=tr001 repo=org/repo
+
+  ○ get_transcript   buscando transcrição...       ┌─ Action Items ─────────────────┐
+  ⟳ extract          analisando com Claude...       │ ○ Fix auth bug        high      │
+                                                    │ ○ Update API docs     medium    │
+                                                    │ ○ PR template         medium    │
+                                                    │ ○ Schedule review     low       │
+                                                    └────────────────────────────────┘
+
+❯ /skill create-github-issues repo=org/repo title="Fix auth bug" \
+    description="Auth failing on mobile after recent deploy" \
+    meeting_title="Team Standup 2026-05-09"
+
+  ✓ gh   Issue #127 criado: Fix auth bug
+```
+
+### Estrutura dos connectors
+
+```
+.gates/
+  connectors/
+    google-workspace/
+      connector.yaml        # gws_calendar, gws_meet, gws_drive via defineCommand
+      docs/setup.md
+    github/
+      connector.yaml        # gh issue/pr/repo via defineCommand + GH_TOKEN
+  skills/
+    list-meetings/
+      skill.yaml            # gws_meet conferenceRecords list
+    extract-action-items/
+      skill.yaml            # gws_meet transcripts entries → LLM → JSON
+    create-github-issues/
+      skill.yaml            # gh issue create
+  harnesses/
+    meeting-issues/
+      harness.js            # orquestra a pipeline
+```
+
+### Como os connectors funcionam
+
+Connectors usam `defineCommand` no `connector.yaml` — sem código, apenas YAML. O mesmo padrão para qualquer CLI:
+
+```yaml
+# .gates/connectors/google-workspace/connector.yaml
+commands:
+  - name: gws_meet
+    executable: gws
+    allowedSubcommands: [meet]
+    env:
+      GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE: "{{credentials.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE}}"
+
+# .gates/connectors/github/connector.yaml
+commands:
+  - name: gh
+    executable: gh
+    allowedSubcommands: [issue, pr, repo, api]
+    env:
+      GH_TOKEN: "{{credentials.GH_TOKEN}}"
+```
+
+Para criar seu próprio connector: crie `connector.yaml` em `.gates/connectors/<nome>/` e declare os comandos. As credenciais são injetadas via `{{credentials.KEY}}` e nunca vazam para outros agentes.
+
+---
+
 ## CLI
 
 ```bash
