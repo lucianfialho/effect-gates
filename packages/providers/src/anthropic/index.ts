@@ -121,10 +121,31 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
             body.tool_choice = { type: "auto" };
           }
 
-          // OAuth tokens (oat01) use Bearer auth; standard API keys use x-api-key
+          // OAuth tokens (sk-ant-oat*) require Claude Code identity headers
+          // to unlock subscription rate limits — same approach as pi-ai / Flue
           const isOAuthToken = config.apiKey.startsWith("sk-ant-oat");
+
+          if (isOAuthToken) {
+            // Inject Claude Code system identity (required by Anthropic for OAuth)
+            const identityBlock = {
+              type: "text",
+              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            };
+            if (body.system) {
+              body.system = [identityBlock, { type: "text", text: body.system }];
+            } else {
+              body.system = [identityBlock];
+            }
+          }
+
           const authHeaders: Record<string, string> = isOAuthToken
-            ? { "Authorization": `Bearer ${config.apiKey}` }
+            ? {
+                "Authorization": `Bearer ${config.apiKey}`,
+                "anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+                "user-agent": "claude-cli/2.1.75",
+                "x-app": "cli",
+                "anthropic-dangerous-direct-browser-access": "true",
+              }
             : { "x-api-key": config.apiKey };
 
           const response = await fetch(`${baseUrl}/messages`, {
