@@ -1,0 +1,17 @@
+name: list-meetings
+description: Lista reuniões recentes com transcrição disponível
+initialState: list
+
+states:
+  - id: list
+    tool: gws_meet
+    params:
+      args: "meet conferenceRecords list"
+    onSuccess: done
+    onFail: done
+
+  - id: done
+
+transitions:
+  - from: list
+    to: done

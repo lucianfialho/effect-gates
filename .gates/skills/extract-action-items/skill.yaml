@@ -1,0 +1,46 @@
+name: extract-action-items
+description: Obtém transcrição de uma reunião via gws e extrai action items com LLM
+initialState: get_transcript
+
+states:
+  - id: get_transcript
+    tool: gws_meet
+    params:
+      args: "meet conferenceRecords transcripts entries list --params '{\"parent\":\"conferenceRecords/{{inputs.conference_id}}/transcripts/{{inputs.transcript_id}}\"}' --page-all"
+
+  - id: extract
+    prompt: |
+      Analise esta transcrição de reunião e extraia TODOS os action items mencionados.
+
+      TRANSCRIÇÃO:
+      {{lastOutput}}
+
+      Retorne APENAS um JSON array (sem texto adicional):
+      [
+        {
+          "title": "Título curto e claro do issue (máx 80 chars)",
+          "description": "Detalhes do que precisa ser feito, contexto da reunião",
+          "assignee": "Nome da pessoa responsável se mencionada, ou null",
+          "priority": "high | medium | low",
+          "labels": ["meeting-action-item"]
+        }
+      ]
+
+      {% if inputs.repo %}
+      Repositório alvo: {{inputs.repo}}
+      {% endif %}
+
+      Regras:
+      - Inclua apenas compromissos explícitos ("vamos fazer X", "precisamos Y", "@pessoa vai Z")
+      - Seja específico nos títulos — evite títulos vagos como "Discutir X"
+      - Prioridade high: blockers, bugs em produção, prazos próximos
+      - Prioridade medium: melhorias importantes, débito técnico
+      - Prioridade low: nice-to-have, documentação, future work
+
+  - id: done
+
+transitions:
+  - from: get_transcript
+    to: extract
+  - from: extract
+    to: done

@@ -4,9 +4,12 @@ import TextInput from "ink-text-input";
 import { MessageList, type ChatMessage, type ToolCallItem } from "../components/message-list.js";
 import { SkillExecution, type SkillExecutionState } from "../components/skill-execution.js";
 import { StatusBar } from "../components/status-bar.js";
+import { Sidebar, type SidebarData } from "../components/sidebar.js";
 import { SkillsList, type SkillInfo } from "./skills-list.js";
 import type { LoadedHarness } from "../../harness/loader.js";
 import { DEFAULT_PORT } from "../../server/index.js";
+
+const SIDEBAR_WIDTH = 36;
 
 interface Props {
   harness: LoadedHarness;
@@ -85,8 +88,15 @@ export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [streamingContent, setStreamingContent] = useState("");
+  const [sidebarData, setSidebarData] = useState<SidebarData | null>(null);
+  const [showSidebar, setShowSidebar] = useState(false);
   const streamingMsgId = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Show sidebar automatically when terminal is wide enough
+  useEffect(() => {
+    setShowSidebar(width >= 110);
+  }, [width]);
 
   // Load history
   useEffect(() => {
@@ -105,6 +115,7 @@ export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
 
   useInput((inputChar, key) => {
     if (showSkillsList) return;
+    if (key.ctrl && inputChar === "s") { setShowSidebar((v) => !v); return; }
     if (key.escape || (key.ctrl && inputChar === "b")) {
       if (status !== "idle") { abortRef.current?.abort(); setStatus("idle"); setStreamingContent(""); setToolCalls([]); setSkillExec(null); return; }
       onBack();
@@ -210,9 +221,34 @@ export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
               break;
             }
 
+            case "sidebar_update":
+              setSidebarData(d as unknown as SidebarData);
+              if (!showSidebar) setShowSidebar(true);
+              break;
+
             case "skill_complete": {
               const result = d as { name: string; state: string; results: unknown[]; errors: unknown[]; lastOutput: unknown };
               setSkillExec((prev) => prev ? { ...prev, done: true, states: prev.states.map((s) => ({ ...s, status: s.status === "running" ? "done" as const : s.status })) } : null);
+
+              // Auto-populate sidebar from action item extraction
+              if (result.name === "extract-action-items" && result.lastOutput) {
+                try {
+                  const items = JSON.parse(String(result.lastOutput)) as Array<{ title: string; assignee?: string; priority?: string }>;
+                  setSidebarData({
+                    title: "Action Items",
+                    sections: [{
+                      title: `Extracted (${items.length})`,
+                      items: items.map((item) => ({
+                        label: item.title,
+                        status: "pending" as const,
+                        value: item.assignee ?? item.priority,
+                      })),
+                    }],
+                  });
+                  if (!showSidebar) setShowSidebar(true);
+                } catch { /* not JSON, skip */ }
+              }
+
               const summary = result.errors.length > 0
                 ? `Skill completed with ${result.errors.length} error(s) in state "${result.state}"`
                 : `Skill completed — ${result.results.length} step(s), final state: "${result.state}"`;
@@ -326,6 +362,10 @@ export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
               setStatus("streaming");
               setStreamingContent((prev) => prev + ((d.text as string) ?? ""));
               break;
+            case "sidebar_update":
+              setSidebarData(d as unknown as SidebarData);
+              if (!showSidebar) setShowSidebar(true);
+              break;
             case "done":
               setMessages((prev) => [...prev, { id: assistantId, role: "assistant" as const, content: d.content as string, timestamp: Date.now() }]);
               setStreamingContent(""); setToolCalls([]); setStatus("idle");
@@ -370,26 +410,41 @@ export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
     streaming: "streaming…", running_skill: "running skill…", error: "error",
   };
 
+  const mainWidth = showSidebar && sidebarData ? width - SIDEBAR_WIDTH : width;
+
   return (
     <Box flexDirection="column" height={height}>
+      {/* Header */}
       <Box borderStyle="single" borderBottom paddingX={1}>
         <Text bold color="cyan">{harness.name}</Text>
-        <Text dimColor>  /sessions  /skills  /skill &lt;name&gt;  Esc back</Text>
+        <Text dimColor>  /sessions  /skills  /skill  Ctrl+S sidebar  Esc back</Text>
       </Box>
 
-      <Box flexGrow={1} flexDirection="column" paddingX={1} paddingTop={1} overflow="hidden">
-        {displayMessages.length === 0 && !skillExec && toolCalls.length === 0 ? (
-          <Box flexGrow={1} alignItems="center" justifyContent="center">
-            <Text dimColor>{harness.config.description ?? `Chat with ${harness.name}`}</Text>
-          </Box>
-        ) : (
-          <Box flexDirection="column" flexGrow={1} overflow="hidden">
-            {skillExec && <SkillExecution execution={skillExec} />}
-            <MessageList messages={displayMessages} toolCalls={toolCalls} maxHeight={height - 6} />
-          </Box>
+      {/* Body: sidebar + main */}
+      <Box flexGrow={1} flexDirection="row" overflow="hidden">
+        {showSidebar && sidebarData && (
+          <Sidebar
+            data={sidebarData}
+            width={SIDEBAR_WIDTH}
+            height={height - 4}
+          />
         )}
+
+        <Box flexGrow={1} flexDirection="column" paddingX={1} paddingTop={1} overflow="hidden">
+          {displayMessages.length === 0 && !skillExec && toolCalls.length === 0 ? (
+            <Box flexGrow={1} alignItems="center" justifyContent="center">
+              <Text dimColor>{harness.config.description ?? `Chat with ${harness.name}`}</Text>
+            </Box>
+          ) : (
+            <Box flexDirection="column" flexGrow={1} overflow="hidden">
+              {skillExec && <SkillExecution execution={skillExec} />}
+              <MessageList messages={displayMessages} toolCalls={toolCalls} maxHeight={height - 6} />
+            </Box>
+          )}
+        </Box>
       </Box>
 
+      {/* Input */}
       <Box borderStyle="single" borderTop paddingX={1}>
         <Text color="cyan">❯ </Text>
         <Box flexGrow={1}>

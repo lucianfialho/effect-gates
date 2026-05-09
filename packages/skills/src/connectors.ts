@@ -96,8 +96,8 @@ export const loadConnector = (
       (key) => !credentials[key]
     );
 
-    // Build tools from commands
-    const tools: Tool[] = (manifest.commands ?? []).map((cmd) =>
+    // Build tools from commands (declarative)
+    const commandTools: Tool[] = (manifest.commands ?? []).map((cmd) =>
       defineCommand({
         name: cmd.name,
         description: cmd.description,
@@ -109,6 +109,37 @@ export const loadConnector = (
         timeout: cmd.timeout,
       })
     );
+
+    // Load programmatic tools from tools.js / tools.mjs (optional)
+    const programmaticTools: Tool[] = [];
+    for (const toolsFile of ["tools.js", "tools.mjs"]) {
+      const toolsPath = path.join(dirPath, toolsFile);
+      const toolsExists = yield* Effect.tryPromise(() =>
+        fs.promises.access(toolsPath).then(() => true).catch(() => false)
+      );
+      if (toolsExists) {
+        const toolsLoaded = yield* Effect.result(
+          Effect.tryPromise(async () => {
+            const { pathToFileURL } = await import("url");
+            const mod = await import(pathToFileURL(toolsPath).href);
+            const factory = mod.default ?? mod;
+            if (typeof factory === "function") {
+              const result = await factory(credentials);
+              return Array.isArray(result) ? result as Tool[] : [];
+            }
+            return [];
+          })
+        );
+        if (toolsLoaded._tag === "Success") {
+          programmaticTools.push(...toolsLoaded.success);
+        } else {
+          console.warn(`[connector:${manifest.name}] tools.js failed: ${toolsLoaded.failure}`);
+        }
+        break;
+      }
+    }
+
+    const tools: Tool[] = [...commandTools, ...programmaticTools];
 
     // Load bundled skills
     const skills: SkillConfig[] = [];

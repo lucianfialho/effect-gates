@@ -1,0 +1,23 @@
+name: create-github-issues
+description: Cria um issue no GitHub a partir de um action item extraído
+initialState: create
+
+states:
+  - id: create
+    tool: gh
+    params:
+      args: >-
+        issue create
+        --repo {{inputs.repo}}
+        --title "{{inputs.title}}"
+        --body "{{inputs.description}}\n\n---\n_Criado automaticamente a partir da reunião: {{inputs.meeting_title}}_"
+        --label "{{inputs.labels}}"
+        {% if inputs.assignee %}--assignee "{{inputs.assignee}}"{% endif %}
+    onSuccess: done
+    onFail: done
+
+  - id: done
+
+transitions:
+  - from: create
+    to: done
