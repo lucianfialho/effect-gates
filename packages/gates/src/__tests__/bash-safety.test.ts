@@ -37,27 +37,27 @@ describe("bashSafety", () => {
   describe("unsafe commands", () => {
     it.each(unsafeCommands)("should reject '%s'", async (command) => {
       const result = await Effect.runPromise(
-        Effect.either(bashSafety()(command))
+        Effect.result(bashSafety()(command))
       );
-      expect(result._tag).toBe("Left");
+      expect(result._tag).toBe("Failure");
     });
   });
 
   describe("safe commands", () => {
     it.each(safeCommands)("should allow '%s'", async (command) => {
       const result = await Effect.runPromise(
-        Effect.either(bashSafety()(command))
+        Effect.result(bashSafety()(command))
       );
-      expect(result._tag).toBe("Right");
+      expect(result._tag).toBe("Success");
     });
   });
 
   describe("unknown commands", () => {
     it.each(unknownCommands)("should reject unknown '%s'", async (command) => {
       const result = await Effect.runPromise(
-        Effect.either(bashSafety()(command))
+        Effect.result(bashSafety()(command))
       );
-      expect(result._tag).toBe("Left");
+      expect(result._tag).toBe("Failure");
     });
   });
 });

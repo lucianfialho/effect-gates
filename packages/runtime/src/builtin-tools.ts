@@ -30,13 +30,13 @@ export const makeReadTool = (sandbox: Sandbox): Tool => ({
       const p = params.path as string;
       if (!p) return toolError("Missing required parameter: path");
 
-      const result = yield* Effect.either(sandbox.readFile(p));
+      const result = yield* Effect.result(sandbox.readFile(p));
 
-      if (result._tag === "Left") {
-        return handleSandboxError(result.left);
+      if (result._tag === "Failure") {
+        return handleSandboxError(result.failure);
       }
 
-      return toolResult(result.right, { path: p, size: result.right.length });
+      return toolResult(result.success, { path: p, size: result.success.length });
     }),
 });
 
@@ -53,10 +53,10 @@ export const makeWriteTool = (sandbox: Sandbox): Tool => ({
         return toolError("Missing required parameters: path, content");
       }
 
-      const result = yield* Effect.either(sandbox.writeFile(p, content));
+      const result = yield* Effect.result(sandbox.writeFile(p, content));
 
-      if (result._tag === "Left") {
-        return handleSandboxError(result.left);
+      if (result._tag === "Failure") {
+        return handleSandboxError(result.failure);
       }
 
       return toolResult(`Written ${content.length} bytes to ${p}`, { path: p });
@@ -72,13 +72,13 @@ export const makeBashTool = (sandbox: Sandbox): Tool => ({
       const command = params.command as string;
       if (!command) return toolError("Missing required parameter: command");
 
-      const result = yield* Effect.either(sandbox.run(command));
+      const result = yield* Effect.result(sandbox.run(command));
 
-      if (result._tag === "Left") {
-        return handleSandboxError(result.left);
+      if (result._tag === "Failure") {
+        return handleSandboxError(result.failure);
       }
 
-      return toolResult(result.right || "(empty output)", { command });
+      return toolResult(result.success || "(empty output)", { command });
     }),
 });
 
@@ -92,15 +92,15 @@ export const makeGlobTool = (sandbox: Sandbox): Tool => ({
       if (!pattern) return toolError("Missing required parameter: pattern");
 
       const cwd = (params.cwd as string) || sandbox.cwd;
-      const result = yield* Effect.either(
+      const result = yield* Effect.result(
         spawnAsync("find", [cwd, "-name", pattern, "-type", "f"])
       );
 
-      if (result._tag === "Left") {
-        return toolError(result.left.message);
+      if (result._tag === "Failure") {
+        return toolError(result.failure.message);
       }
 
-      const files = result.right.trim().split("\n").filter(Boolean).slice(0, 50);
+      const files = result.success.trim().split("\n").filter(Boolean).slice(0, 50);
       return toolResult(
         files.length > 0 ? files.join("\n") : "No matches found",
         { pattern, cwd, count: files.length }
@@ -121,13 +121,13 @@ export const makeGrepTool = (sandbox: Sandbox): Tool => ({
       const caseSensitive = params.caseSensitive !== false;
 
       const grepArgs = caseSensitive ? ["-rn", query, searchPath] : ["-rni", query, searchPath];
-      const result = yield* Effect.either(spawnAsync("grep", grepArgs));
+      const result = yield* Effect.result(spawnAsync("grep", grepArgs));
 
-      if (result._tag === "Left") {
-        return toolError(result.left.message);
+      if (result._tag === "Failure") {
+        return toolError(result.failure.message);
       }
 
-      const lines = result.right.trim().split("\n").filter(Boolean).slice(0, 100);
+      const lines = result.success.trim().split("\n").filter(Boolean).slice(0, 100);
       return toolResult(
         lines.length > 0 ? lines.join("\n") : `No matches found for "${query}"`,
         { query, path: searchPath, count: lines.length }
@@ -159,12 +159,12 @@ export const makeEditTool = (sandbox: Sandbox): Tool => ({
         return toolError("Missing required parameters: path, oldText");
       }
 
-      const readResult = yield* Effect.either(sandbox.readFile(path));
-      if (readResult._tag === "Left") {
-        return handleSandboxError(readResult.left);
+      const readResult = yield* Effect.result(sandbox.readFile(path));
+      if (readResult._tag === "Failure") {
+        return handleSandboxError(readResult.failure);
       }
 
-      const content = readResult.right;
+      const content = readResult.success;
       let newContent: string;
       let count: number;
 
@@ -182,9 +182,9 @@ export const makeEditTool = (sandbox: Sandbox): Tool => ({
         newContent = content.substring(0, idx) + newText + content.substring(idx + oldText.length);
       }
 
-      const writeResult = yield* Effect.either(sandbox.writeFile(path, newContent));
-      if (writeResult._tag === "Left") {
-        return handleSandboxError(writeResult.left);
+      const writeResult = yield* Effect.result(sandbox.writeFile(path, newContent));
+      if (writeResult._tag === "Failure") {
+        return handleSandboxError(writeResult.failure);
       }
 
       return toolResult(`Edited ${count} occurrence(s) in ${path}`, { path, count, replaced: count > 0 });

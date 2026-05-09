@@ -18,6 +18,12 @@ import {
   type TokenBudget,
   type TokenBudgetConfig,
 } from "./token-budget.js";
+import type {
+  ChatResponse,
+  ProviderError,
+} from "@gates-effect/providers";
+
+export type { ChatResponse, ProviderError };
 
 export interface AgentConfig {
   readonly model: string;
@@ -32,21 +38,6 @@ export interface AgentConfig {
 export interface Provider {
   readonly id: string;
   readonly chat: (messages: Message[]) => Effect.Effect<ChatResponse, ProviderError>;
-}
-
-export interface ChatResponse {
-  readonly content: string;
-  readonly usage: {
-    readonly inputTokens: number;
-    readonly outputTokens: number;
-    readonly totalTokens: number;
-  };
-  readonly cost?: number;
-}
-
-export interface ProviderError {
-  readonly code: string;
-  readonly message: string;
 }
 
 export interface Session {
@@ -248,10 +239,10 @@ export const makeAgent = (config: AgentConfig): Effect.Effect<Agent> =>
             triggeredBy: triggeredBy ?? "budget",
           });
 
-          const result = yield* Effect.either(compaction);
+          const result = yield* Effect.result(compaction);
 
-          if (result._tag === "Right") {
-            compactionResult = result.right;
+          if (result._tag === "Success") {
+            compactionResult = result.success;
           }
         }
 

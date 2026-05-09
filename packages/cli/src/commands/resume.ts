@@ -65,13 +65,13 @@ const doResume = (sessionId: string, prompt: string, options: ResumeOptions): Ef
     const contextMessages = yield* history.buildContext();
     const providerMessages = contextMessages.map(toProviderMessage);
 
-    const response = yield* Effect.either(provider.chat(providerMessages));
+    const response = yield* Effect.result(provider.chat(providerMessages));
 
-    if (response._tag === "Right") {
+    if (response._tag === "Success") {
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: response.right.content,
+        content: response.success.content,
         timestamp: Date.now(),
       };
 
@@ -80,12 +80,12 @@ const doResume = (sessionId: string, prompt: string, options: ResumeOptions): Ef
       const data = yield* history.toData({ sessionId });
       yield* store.save(storageKey, data);
 
-      console.log(response.right.content);
-      console.log(`\n  [Tokens: ${response.right.usage.totalTokens}]`);
+      console.log(response.success.content);
+      console.log(`\n  [Tokens: ${response.success.usage.totalTokens}]`);
       console.log(`  [Session updated: ${sessionId}]`);
     } else {
-      const e = response.left as { message?: string };
-      console.error(`Error: ${e.message ?? response.left}`);
+      const e = response.failure as { message?: string };
+      console.error(`Error: ${e.message ?? response.failure}`);
     }
   });
 

@@ -37,7 +37,7 @@ export const bashSafety = (config: BashSafetyConfig = {}) => {
   const maxOutputSize = config.maxOutputSize ?? 1024 * 1024;
 
   return (command: string): Effect.Effect<void, BashSafetyError> =>
-    Effect.gen(this, function* () {
+    Effect.gen(function* () {
       for (const pattern of DANGEROUS_PATTERNS) {
         if (pattern.test(command)) {
           return yield* Effect.fail(new BashSafetyError(
@@ -63,7 +63,7 @@ export const runBash = (
   command: string,
   config: BashSafetyConfig = {}
 ): Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, BashSafetyError | Error> =>
-  Effect.gen(this, function* () {
+  Effect.gen(function* () {
     const safety = bashSafety(config);
     yield* safety(command);
 

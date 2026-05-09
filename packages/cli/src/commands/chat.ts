@@ -111,25 +111,25 @@ const doChat = (options: ChatOptions): Effect.Effect<void> =>
         const contextMessages = yield* history.buildContext();
         const providerMessages = contextMessages.map(toProviderMessage);
 
-        const response = yield* Effect.either(provider.chat(providerMessages));
+        const response = yield* Effect.result(provider.chat(providerMessages));
 
-        if (response._tag === "Right") {
+        if (response._tag === "Success") {
           const assistantMessage: Message = {
             id: crypto.randomUUID(),
             role: "assistant",
-            content: response.right.content,
+            content: response.success.content,
             timestamp: Date.now(),
           };
 
           yield* history.appendMessage(assistantMessage, "prompt");
 
-          console.log(`\n${response.right.content}`);
-          console.log(`  [Tokens: ${response.right.usage.totalTokens}]`);
+          console.log(`\n${response.success.content}`);
+          console.log(`  [Tokens: ${response.success.usage.totalTokens}]`);
 
           yield* persist();
         } else {
-          const err = response.left as { message?: string };
-          console.log(`\n❌ Error: ${err.message ?? response.left}`);
+          const err = response.failure as { message?: string };
+          console.log(`\n❌ Error: ${err.message ?? response.failure}`);
         }
 
         rl.prompt();

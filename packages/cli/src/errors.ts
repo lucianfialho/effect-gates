@@ -12,7 +12,7 @@ export const renderError = (error: unknown): string => {
 export const withCliError = <A>(
   effect: Effect.Effect<A, CliError>
 ): Effect.Effect<A, CliError> =>
-  Effect.catchAll(effect, (error) =>
+  Effect.catch_(effect, (error) =>
     Effect.sync(() => {
       console.error(renderError(error));
       process.exit(1);

@@ -274,33 +274,33 @@ export const makeSkillExecutor = (
 
           const executor = executorConfig?.executeTool ?? defaultToolExecutor;
           const mergedParams = { ...context.input, ...interpolateParams(state.params, context) };
-          const result = yield* Effect.either(
+          const result = yield* Effect.result(
             executor(state.tool, mergedParams, context).pipe(
               Effect.timeout(state.timeout ? state.timeout : 60000)
             )
           );
 
-          if (result._tag === "Left") {
-            const err = result.left;
+          if (result._tag === "Failure") {
+            const err = result.failure;
             yield* emitEvent(createEvent("skill_error", { error: String(err) }, state.id));
             return { success: false };
           }
 
-          yield* emitEvent(createEvent("tool_result", { result: result.right }, state.id));
-          return { output: result.right, success: true };
+          yield* emitEvent(createEvent("tool_result", { result: result.success }, state.id));
+          return { output: result.success, success: true };
         }
 
         if (state.prompt) {
           const executor = executorConfig?.executePrompt ?? defaultPromptExecutor;
           const interpolatedPrompt = interpolate(state.prompt, context);
-          const result = yield* Effect.either(executor(interpolatedPrompt, context));
+          const result = yield* Effect.result(executor(interpolatedPrompt, context));
 
-          if (result._tag === "Left") {
-            yield* emitEvent(createEvent("skill_error", { error: String(result.left) }, state.id));
+          if (result._tag === "Failure") {
+            yield* emitEvent(createEvent("skill_error", { error: String(result.failure) }, state.id));
             return { success: false };
           }
 
-          return { output: result.right, success: true };
+          return { output: result.success, success: true };
         }
 
         if (state.delegateTo) {
@@ -314,15 +314,15 @@ export const makeSkillExecutor = (
                 interpolatedInputs[key] = interpolate(value, context);
               }
             }
-            const result = yield* Effect.either(
+            const result = yield* Effect.result(
               executorConfig.delegateSkill(state.delegateTo, interpolatedInputs, context)
             );
-            if (result._tag === "Left") {
-              yield* emitEvent(createEvent("skill_error", { error: String(result.left) }, state.id));
+            if (result._tag === "Failure") {
+              yield* emitEvent(createEvent("skill_error", { error: String(result.failure) }, state.id));
               return { success: false };
             }
-            yield* emitEvent(createEvent("tool_result", { result: result.right }, state.id));
-            delegateOutput = result.right;
+            yield* emitEvent(createEvent("tool_result", { result: result.success }, state.id));
+            delegateOutput = result.success;
           } else {
             const interpolatedInputs: Record<string, string> = {};
             if (state.delegateInputs) {

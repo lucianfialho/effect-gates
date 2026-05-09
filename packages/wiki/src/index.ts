@@ -59,7 +59,7 @@ const serializeFrontmatter = (metadata: Record<string, string>, body: string): s
 export const loadWikiIndex = (
   rootPath: string = "."
 ): Effect.Effect<WikiIndex, WikiError> =>
-  Effect.try({
+  Effect.try_({
     try: () => {
       const wikiPath = path.join(rootPath, INDEX_FILE);
 
@@ -83,7 +83,7 @@ export const saveWikiIndex = (
   index: WikiIndex,
   rootPath: string = "."
 ): Effect.Effect<void, WikiError> =>
-  Effect.try({
+  Effect.try_({
     try: () => {
       const wikiDir = path.join(rootPath, WIKI_DIR);
       if (!fs.existsSync(wikiDir)) {
@@ -100,7 +100,7 @@ export const getEntry = (
   entryPath: string,
   rootPath: string = "."
 ): Effect.Effect<WikiEntry, WikiError> =>
-  Effect.try({
+  Effect.try_({
     try: () => {
       const fullPath = path.join(rootPath, WIKI_DIR, entryPath);
 
@@ -128,7 +128,7 @@ export const saveEntry = (
   entry: WikiEntry,
   rootPath: string = "."
 ): Effect.Effect<void, WikiError> =>
-  Effect.try({
+  Effect.try_({
     try: () => {
       const wikiDir = path.join(rootPath, WIKI_DIR);
       if (!fs.existsSync(wikiDir)) {
@@ -156,7 +156,7 @@ export const searchWiki = (
   query: string,
   rootPath: string = "."
 ): Effect.Effect<WikiEntry[], WikiError> =>
-  Effect.gen(this, function* () {
+  Effect.gen(function* () {
     const index = yield* loadWikiIndex(rootPath);
     const lowerQuery = query.toLowerCase();
 

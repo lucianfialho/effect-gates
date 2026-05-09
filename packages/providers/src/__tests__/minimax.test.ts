@@ -65,12 +65,12 @@ describe("MiniMax Provider", () => {
 
     const provider = makeMiniMaxProvider({ apiKey: "bad-key" });
     const result = await Effect.runPromise(
-      Effect.either(provider.chat([{ role: "user", content: "Hi", timestamp: Date.now() }]))
+      Effect.result(provider.chat([{ role: "user", content: "Hi", timestamp: Date.now() }]))
     );
 
-    expect(result._tag).toBe("Left");
-    if (result._tag === "Left") {
-      expect(result.left.code).toBe("MINIMAX_ERROR");
+    expect(result._tag).toBe("Failure");
+    if (result._tag === "Failure") {
+      expect(result.failure.code).toBe("MINIMAX_ERROR");
     }
   });
 });

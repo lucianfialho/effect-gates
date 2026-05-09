@@ -57,12 +57,12 @@ export interface SessionStore {
 }
 
 export const makeInMemorySessionStore = (): Effect.Effect<SessionStore> =>
-  Effect.gen(this, function* () {
+  Effect.gen(function* () {
     const store = yield* Ref.make<Map<string, SessionData>>(new Map());
 
     return {
       save: (key: string, data: SessionData) =>
-        Effect.gen(this, function* () {
+        Effect.gen(function* () {
           const map = yield* Ref.get(store);
           yield* Ref.set(store, new Map(map).set(key, data));
         }),
@@ -71,7 +71,7 @@ export const makeInMemorySessionStore = (): Effect.Effect<SessionStore> =>
         Effect.map(Ref.get(store), (map) => map.get(key) ?? null),
 
       delete: (key: string) =>
-        Effect.gen(this, function* () {
+        Effect.gen(function* () {
           const map = yield* Ref.get(store);
           const newMap = new Map(map);
           newMap.delete(key);
@@ -111,8 +111,9 @@ export class SessionHistory {
   }
 
   getActivePath(): Effect.Effect<SessionEntryType[]> {
-    return Effect.gen(this, function* () {
-      const state = yield* Ref.get(this.state);
+    const stateRef = this.state;
+    return Effect.gen(function* () {
+      const state = yield* Ref.get(stateRef);
       if (!state.leafId) return [];
 
       const path: SessionEntryType[] = [];
@@ -128,8 +129,9 @@ export class SessionHistory {
   }
 
   buildContext(): Effect.Effect<Message[]> {
-    return Effect.gen(this, function* () {
-      const path = yield* this.getActivePath();
+    const self = this;
+    return Effect.gen(function* () {
+      const path = yield* self.getActivePath();
       const latestCompactionIndex = findLatestCompactionIndex(path);
 
       if (latestCompactionIndex === -1) {
@@ -167,8 +169,9 @@ export class SessionHistory {
   }
 
   appendMessage(message: Message, source?: "user" | "prompt" | "skill" | "shell"): Effect.Effect<string> {
-    return Effect.gen(this, function* () {
-      const current = yield* Ref.get(this.state);
+    const stateRef = this.state;
+    return Effect.gen(function* () {
+      const current = yield* Ref.get(stateRef);
       const id = generateEntryId(current.byId);
 
       const entry: MessageEntry = {
@@ -183,7 +186,7 @@ export class SessionHistory {
       const newById = new Map(current.byId);
       newById.set(id, entry);
 
-      yield* Ref.set(this.state, {
+      yield* Ref.set(stateRef, {
         entries: [...current.entries, entry],
         leafId: id,
         byId: newById,
@@ -202,8 +205,9 @@ appendCompaction(input: {
     readonly modifiedFiles: readonly string[];
   };
  }): Effect.Effect<string, Error> {
-    return Effect.gen(this, function* () {
-      const current = yield* Ref.get(this.state);
+    const stateRef = this.state;
+    return Effect.gen(function* () {
+      const current = yield* Ref.get(stateRef);
 
       if (!current.byId.has(input.firstKeptEntryId)) {
         return yield* Effect.fail(
@@ -226,7 +230,7 @@ appendCompaction(input: {
       const newById = new Map(current.byId);
       newById.set(id, entry);
 
-      yield* Ref.set(this.state, {
+      yield* Ref.set(stateRef, {
         entries: [...current.entries, entry],
         leafId: id,
         byId: newById,
@@ -237,8 +241,9 @@ appendCompaction(input: {
   }
 
   appendBranchSummary(fromId: string, summary: string, details?: unknown): Effect.Effect<string> {
-    return Effect.gen(this, function* () {
-      const current = yield* Ref.get(this.state);
+    const stateRef = this.state;
+    return Effect.gen(function* () {
+      const current = yield* Ref.get(stateRef);
       const id = generateEntryId(current.byId);
 
       const entry: BranchSummaryEntry = {
@@ -254,7 +259,7 @@ appendCompaction(input: {
       const newById = new Map(current.byId);
       newById.set(id, entry);
 
-      yield* Ref.set(this.state, {
+      yield* Ref.set(stateRef, {
         entries: [...current.entries, entry],
         leafId: id,
         byId: newById,

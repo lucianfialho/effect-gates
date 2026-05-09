@@ -49,7 +49,7 @@ const formatPermissions = (mode: number): string => {
 export const getFileMetadata = (
   filePath: string
 ): Effect.Effect<FileMetadata, MetadataError> =>
-  Effect.try({
+  Effect.try_({
     try: () => {
       const stats = fs.statSync(filePath);
       return {
@@ -71,7 +71,7 @@ export const getDirectoryMetadata = (
   dirPath: string,
   options: { recursive?: boolean; maxDepth?: number } = {}
 ): Effect.Effect<DirectoryMetadata, MetadataError> =>
-  Effect.try({
+  Effect.try_({
     try: () => {
       const recursive = options.recursive ?? false;
       const maxDepth = options.maxDepth ?? Infinity;

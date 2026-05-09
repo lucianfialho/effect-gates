@@ -16,7 +16,7 @@
     "@gates-effect/runtime": "workspace:*",
     "@gates-effect/sandbox": "workspace:*",
     "@gates-effect/skills": "workspace:*",
-    "effect": "^3.0.0",
+    "effect": "4.0.0-beta.64",
     "commander": "^12.0.0"
   },
   "devDependencies": {

@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "effect": "^3.0.0"
+    "effect": "4.0.0-beta.64"
   },
   "devDependencies": {
     "@types/node": "^20.19.40",

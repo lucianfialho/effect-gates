@@ -97,14 +97,14 @@ const doRun = (prompt: string, options: RunOptions) =>
 
     if (!toolEnabled) {
       const providerMessages: ProviderMessage[] = initialMessages.map(toProviderMessage);
-      const result = yield* Effect.either(provider.chat(providerMessages));
+      const result = yield* Effect.result(provider.chat(providerMessages));
 
-      if (result._tag === "Right") {
-        console.log(result.right.content);
-        console.log(`\n  [Tokens: ${result.right.usage.totalTokens}]`);
+      if (result._tag === "Success") {
+        console.log(result.success.content);
+        console.log(`\n  [Tokens: ${result.success.usage.totalTokens}]`);
       } else {
-        const e = result.left as { message?: string };
-        console.error(`Error: ${e.message ?? result.left}`);
+        const e = result.failure as { message?: string };
+        console.error(`Error: ${e.message ?? result.failure}`);
       }
       return;
     }
@@ -168,7 +168,7 @@ const doRun = (prompt: string, options: RunOptions) =>
 export const run = (prompt: string, options: RunOptions): void => {
   Effect.runPromise(
     doRun(prompt, options).pipe(
-      Effect.catchAll((e) => Effect.sync(() => console.error("Error:", e)))
+      Effect.catch_((e) => Effect.sync(() => console.error("Error:", e)))
     )
   );
 };

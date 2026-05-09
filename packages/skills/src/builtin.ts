@@ -19,7 +19,7 @@ export const bashSkill: Skill = {
   name: "bash",
   description: "Execute a bash command safely",
   execute: (input: SkillInput): Effect.Effect<SkillOutput, SkillError> =>
-    Effect.gen(this, function* () {
+    Effect.gen(function* () {
       const command = input.params["command"];
       if (!command) {
         return yield* Effect.fail({
@@ -51,7 +51,7 @@ export const readSkill: Skill = {
   name: "read",
   description: "Read file contents",
   execute: (input: SkillInput): Effect.Effect<SkillOutput, SkillError> =>
-    Effect.gen(this, function* () {
+    Effect.gen(function* () {
       const filePath = input.params["path"];
       if (!filePath) {
         return yield* Effect.fail({
@@ -76,7 +76,7 @@ export const writeSkill: Skill = {
   name: "write",
   description: "Write content to a file",
   execute: (input: SkillInput): Effect.Effect<SkillOutput, SkillError> =>
-    Effect.gen(this, function* () {
+    Effect.gen(function* () {
       const filePath = input.params["path"];
       const content = input.params["content"];
 
@@ -109,7 +109,7 @@ export const searchSkill: Skill = {
   name: "search",
   description: "Search for text in files",
   execute: (input: SkillInput): Effect.Effect<SkillOutput, SkillError> =>
-    Effect.gen(this, function* () {
+    Effect.gen(function* () {
       const query = input.params["query"];
       const searchPath = input.params["path"] ?? input.context.workingDirectory;
 

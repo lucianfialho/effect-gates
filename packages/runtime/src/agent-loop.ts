@@ -6,6 +6,7 @@ import { toolError } from "./tools.js";
 export interface AgentLoopConfig {
   readonly maxIterations: number;
   readonly timeoutMs?: number;
+  readonly toolConcurrency?: "sequential" | "unbounded" | number;
 }
 
 export interface AgentLoopState {
@@ -42,7 +43,8 @@ interface ToolResultWithId {
 
 const executeTools = (
   tools: Map<string, Tool>,
-  calls: ToolCall[]
+  calls: ToolCall[],
+  concurrency: AgentLoopConfig["toolConcurrency"]
 ): Effect.Effect<ToolResultWithId[]> => {
   const effects = calls.map((call) => {
     const tool = tools.get(call.name);
@@ -61,7 +63,13 @@ const executeTools = (
       };
     });
   });
-  return Effect.all(effects);
+
+  if (!concurrency || concurrency === "sequential") {
+    return Effect.all(effects);
+  }
+  return Effect.all(effects, {
+    concurrency: concurrency === "unbounded" ? "unbounded" : concurrency,
+  });
 };
 
 export const runAgentLoop = (
@@ -87,7 +95,7 @@ export const runAgentLoop = (
         break;
       }
 
-      const toolResultsWithIds = yield* executeTools(tools, response.toolCalls);
+      const toolResultsWithIds = yield* executeTools(tools, response.toolCalls, config.toolConcurrency);
       const toolResults = toolResultsWithIds.map((r) => r.result);
 
       const assistantMessage: Message = {

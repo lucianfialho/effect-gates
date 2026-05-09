@@ -150,21 +150,21 @@ export const createHarness = (config: HarnessConfig) => {
               });
             }
 
-            const result = yield* Effect.either(
+            const result = yield* Effect.result(
               skill.execute(opts.args as Record<string, unknown>, session) as Effect.Effect<unknown, HarnessError>
             );
 
-            if (result._tag === "Left") {
-              const err = result.left as HarnessError;
+            if (result._tag === "Failure") {
+              const err = result.failure as HarnessError;
               return yield* Effect.fail(err);
             }
 
             if (opts.result) {
-              const validated = yield* opts.result.parse(result.right);
+              const validated = yield* opts.result.parse(result.success);
               return validated as TResult;
             }
 
-            return result.right as TResult;
+            return result.success as TResult;
           }),
       };
 

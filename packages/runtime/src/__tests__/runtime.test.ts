@@ -72,12 +72,12 @@ describe("Runtime", () => {
       );
 
       const result = await Effect.runPromise(
-        Effect.either(agent.resume("non-existent-id", "Hello"))
+        Effect.result(agent.resume("non-existent-id", "Hello"))
       );
 
-      expect(result._tag).toBe("Left");
-      if (result._tag === "Left") {
-        expect(result.left.code).toBe("SESSION_NOT_FOUND");
+      expect(result._tag).toBe("Failure");
+      if (result._tag === "Failure") {
+        expect(result.failure.code).toBe("SESSION_NOT_FOUND");
       }
     });
   });

@@ -27,13 +27,13 @@ export const makeToolExecutor = (tools: Tool[]): Effect.Effect<ToolExecutor> =>
           return toolError(`Tool "${call.name}" not found`);
         }
 
-        const result = yield* Effect.either(tool.execute(call.params));
+        const result = yield* Effect.result(tool.execute(call.params));
 
-        if (result._tag === "Left") {
-          return toolError(String(result.left));
+        if (result._tag === "Failure") {
+          return toolError(String(result.failure));
         }
 
-        return result.right;
+        return result.success;
       });
 
     const executeAll = (calls: ToolCall[]): Effect.Effect<ToolResult[]> =>

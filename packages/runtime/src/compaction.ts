@@ -1,4 +1,4 @@
-import { Effect, Schedule, Stream } from "effect";
+import { Effect } from "effect";
 import type { Message } from "./session-history.js";
 import type { TokenBudget } from "./token-budget.js";
 
@@ -181,9 +181,9 @@ export const withCompaction = <A, E>(
     const shouldCompact = yield* triggerCheck;
 
     if (shouldCompact) {
-      yield* Effect.fork(
+      yield* Effect.forkChild(
         compaction.pipe(
-          Effect.catchAll((e) =>
+          Effect.catch_((e) =>
             Effect.sync(() => console.error("[compaction] failed:", e.message))
           )
         )
