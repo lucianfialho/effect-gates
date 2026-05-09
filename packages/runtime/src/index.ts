@@ -65,6 +65,7 @@ export type {
   HarnessError,
   SkillOptions,
   SkillResultSchema,
+  CompactionScope,
   Role,
   Trigger,
   HarnessConfig,
