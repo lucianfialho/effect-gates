@@ -5,15 +5,17 @@ import type { LoadedHarness } from "../../harness/loader.js";
 interface Props {
   harnesses: LoadedHarness[];
   onSelect: (harness: LoadedHarness) => void;
+  onOpenSessions: () => void;
 }
 
-export function HarnessSelect({ harnesses, onSelect }: Props) {
+export function HarnessSelect({ harnesses, onSelect, onOpenSessions }: Props) {
   const [selected, setSelected] = useState(0);
 
   useInput((input, key) => {
     if (key.upArrow) setSelected((s) => Math.max(0, s - 1));
     if (key.downArrow) setSelected((s) => Math.min(harnesses.length - 1, s + 1));
     if (key.return) onSelect(harnesses[selected]!);
+    if (input === "s") onOpenSessions();
   });
 
   return (
@@ -52,7 +54,7 @@ export function HarnessSelect({ harnesses, onSelect }: Props) {
         ))}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>↑↓ navigate  ↵ select  q quit</Text>
+        <Text dimColor>↑↓ navigate  ↵ select  s sessions  q quit</Text>
       </Box>
     </Box>
   );

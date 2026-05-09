@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { HarnessSelect } from "./screens/harness-select.js";
 import { Chat } from "./screens/chat.js";
+import { SessionsList, type SessionInfo } from "./screens/sessions-list.js";
 import type { LoadedHarness } from "../harness/loader.js";
 import { DEFAULT_PORT } from "../server/index.js";
 
-type Screen = "loading" | "select" | "chat";
+type Screen = "loading" | "select" | "sessions" | "chat";
 
 interface Props {
   harnesses: LoadedHarness[];
@@ -24,23 +25,42 @@ export function App({ harnesses }: Props) {
     }
   });
 
-  const handleSelectHarness = async (harness: LoadedHarness) => {
+  const startSession = async (harnessName: string, resumeSessionId?: string) => {
     setScreen("loading");
     setError(null);
     try {
+      const body = resumeSessionId
+        ? { resumeSessionId }
+        : { harnessName };
       const res = await fetch(`http://localhost:${DEFAULT_PORT}/api/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ harnessName: harness.name }),
+        body: JSON.stringify(body),
       });
-      const { sessionId: id } = await res.json() as { sessionId: string };
+      const data = await res.json() as { sessionId?: string; error?: string };
+      if (data.error) throw new Error(data.error);
+
+      const harness =
+        harnesses.find((h) => h.name === harnessName) ??
+        harnesses[0]!;
       setSelectedHarness(harness);
-      setSessionId(id);
+      setSessionId(data.sessionId!);
       setScreen("chat");
     } catch (e) {
-      setError(`Failed to create session: ${e}`);
+      setError(String(e));
       setScreen("select");
     }
+  };
+
+  const handleSelectHarness = (harness: LoadedHarness) =>
+    startSession(harness.name);
+
+  const handleResumeSession = async (session: SessionInfo) => {
+    // Find the matching harness, fall back to first available
+    const harness =
+      harnesses.find((h) => h.name === session.harnessName) ?? harnesses[0]!;
+    setSelectedHarness(harness);
+    await startSession(session.harnessName, session.id);
   };
 
   const handleBack = () => {
@@ -49,11 +69,13 @@ export function App({ harnesses }: Props) {
     setSessionId(null);
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   if (screen === "loading") {
     return (
       <Box padding={2}>
         <Text color="cyan">◆ </Text>
-        <Text>Starting session…</Text>
+        <Text>Loading…</Text>
       </Box>
     );
   }
@@ -68,7 +90,22 @@ export function App({ harnesses }: Props) {
   }
 
   if (screen === "select") {
-    return <HarnessSelect harnesses={harnesses} onSelect={handleSelectHarness} />;
+    return (
+      <HarnessSelect
+        harnesses={harnesses}
+        onSelect={handleSelectHarness}
+        onOpenSessions={() => setScreen("sessions")}
+      />
+    );
+  }
+
+  if (screen === "sessions") {
+    return (
+      <SessionsList
+        onResume={handleResumeSession}
+        onBack={() => setScreen("select")}
+      />
+    );
   }
 
   if (screen === "chat" && selectedHarness && sessionId) {
@@ -77,6 +114,7 @@ export function App({ harnesses }: Props) {
         harness={selectedHarness}
         sessionId={sessionId}
         onBack={handleBack}
+        onOpenSessions={() => setScreen("sessions")}
       />
     );
   }

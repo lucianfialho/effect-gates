@@ -4,7 +4,7 @@ import { stream } from "hono/streaming";
 import { Effect } from "effect";
 import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates-effect/providers";
 import type { Provider, Tool as ProviderTool } from "@gates-effect/providers";
-import { makeFileSessionStore, SessionHistory, toolsMap } from "@gates-effect/runtime";
+import { makeFileSessionStore, SessionHistory, toolsMap, listSessions } from "@gates-effect/runtime";
 import type { Message } from "@gates-effect/runtime";
 import type { Message as ProviderMessage, ToolCall } from "@gates-effect/providers";
 import { makeLocalSandbox } from "@gates-effect/sandbox";
@@ -60,19 +60,74 @@ export function createServer(harnesses: LoadedHarness[]) {
   );
 
   app.post("/api/sessions", async (c) => {
-    const { harnessName } = await c.req.json<{ harnessName: string }>();
-    if (!harnesses.find((h) => h.name === harnessName))
+    const body = await c.req.json<{ harnessName?: string; resumeSessionId?: string }>();
+
+    // Resume an existing persisted session
+    if (body.resumeSessionId) {
+      const store = await Effect.runPromise(makeFileSessionStore());
+      const data = await Effect.runPromise(store.load(`harness-ui:${body.resumeSessionId}`));
+      if (!data) return c.json({ error: "Session not found" }, 404);
+      const harnessName = (data.metadata as Record<string, string>).harnessName ?? "Assistant";
+      sessions.set(body.resumeSessionId, {
+        harnessName,
+        createdAt: new Date(data.createdAt).getTime(),
+      });
+      return c.json({ sessionId: body.resumeSessionId });
+    }
+
+    // New session
+    const { harnessName } = body;
+    if (!harnessName || !harnesses.find((h) => h.name === harnessName))
       return c.json({ error: "Harness not found" }, 404);
     const sessionId = crypto.randomUUID();
     sessions.set(sessionId, { harnessName, createdAt: Date.now() });
     return c.json({ sessionId });
   });
 
-  app.get("/api/sessions", (c) =>
-    c.json([...sessions.entries()].map(([id, meta]) => ({
-      id, harnessName: meta.harnessName, createdAt: meta.createdAt,
-    })))
-  );
+  app.get("/api/sessions", async (c) => {
+    const store = await Effect.runPromise(makeFileSessionStore());
+    const keys = await Effect.runPromise(listSessions());
+
+    const result = (
+      await Promise.all(
+        keys
+          .filter((k) => k.startsWith("harness-ui_"))
+          .map(async (key) => {
+            const originalKey = key.replace(/^harness-ui_/, "harness-ui:");
+            const data = await Effect.runPromise(store.load(originalKey));
+            if (!data) return null;
+            const meta = data.metadata as Record<string, string>;
+            const sessionId = meta.sessionId ?? key.replace("harness-ui_", "");
+            const msgEntries = data.entries.filter((e) => e.type === "message");
+            const lastUser = [...msgEntries]
+              .reverse()
+              .find((e) => (e as { message?: { role: string } }).message?.role === "user") as
+              | { message: { content: string } }
+              | undefined;
+            return {
+              id: sessionId,
+              harnessName: meta.harnessName ?? "Unknown",
+              messageCount: msgEntries.length,
+              preview: lastUser?.message.content.slice(0, 80) ?? "",
+              createdAt: new Date(data.createdAt).getTime(),
+              updatedAt: new Date(data.updatedAt).getTime(),
+            };
+          })
+      )
+    )
+      .filter(Boolean)
+      .sort((a, b) => b!.updatedAt - a!.updatedAt);
+
+    return c.json(result);
+  });
+
+  app.delete("/api/sessions/:id", async (c) => {
+    const sessionId = c.req.param("id");
+    const store = await Effect.runPromise(makeFileSessionStore());
+    await Effect.runPromise(store.delete(`harness-ui:${sessionId}`));
+    sessions.delete(sessionId);
+    return c.json({ ok: true });
+  });
 
   app.post("/api/sessions/:id/chat", (c) => {
     const sessionId = c.req.param("id");
@@ -197,7 +252,7 @@ export function createServer(harnesses: LoadedHarness[]) {
         };
         await Effect.runPromise(history.appendMessage(userMsg, "user"));
         await Effect.runPromise(history.appendMessage(assistantMsg, "prompt"));
-        const data = await Effect.runPromise(history.toData({ sessionId }));
+        const data = await Effect.runPromise(history.toData({ sessionId, harnessName: meta.harnessName }));
         await Effect.runPromise(store.save(storageKey, data));
 
         // Stream final response word by word

@@ -12,6 +12,7 @@ interface Props {
   harness: LoadedHarness;
   sessionId: string;
   onBack: () => void;
+  onOpenSessions: () => void;
 }
 
 type Status = "idle" | "thinking" | "tool_calling" | "streaming" | "running_skill" | "error";
@@ -41,7 +42,7 @@ function parseSseChunk(buffer: string, chunk: string) {
 // ── Command parser ────────────────────────────────────────────────────────────
 
 interface ParsedCommand {
-  type: "skill" | "skills" | "clear" | "role" | "none";
+  type: "skill" | "skills" | "sessions" | "clear" | "role" | "none";
   skillName?: string;
   skillArgs?: Record<string, unknown>;
   roleName?: string;
@@ -54,6 +55,7 @@ function parseCommand(text: string): ParsedCommand {
 
   switch (cmd?.toLowerCase()) {
     case "skills": return { type: "skills" };
+    case "sessions": return { type: "sessions" };
     case "clear": return { type: "clear" };
     case "role": return { type: "role", roleName: arg };
     case "skill": {
@@ -71,7 +73,7 @@ function parseCommand(text: string): ParsedCommand {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function Chat({ harness, sessionId, onBack }: Props) {
+export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
   const { stdout } = useStdout();
   const width = stdout?.columns ?? 80;
   const height = stdout?.rows ?? 24;
@@ -257,10 +259,8 @@ export function Chat({ harness, sessionId, onBack }: Props) {
 
     const cmd = parseCommand(text);
 
-    if (cmd.type === "skills") {
-      setShowSkillsList(true);
-      return;
-    }
+    if (cmd.type === "skills") { setShowSkillsList(true); return; }
+    if (cmd.type === "sessions") { onOpenSessions(); return; }
 
     if (cmd.type === "skill") {
       if (!cmd.skillName) {
@@ -374,7 +374,7 @@ export function Chat({ harness, sessionId, onBack }: Props) {
     <Box flexDirection="column" height={height}>
       <Box borderStyle="single" borderBottom paddingX={1}>
         <Text bold color="cyan">{harness.name}</Text>
-        <Text dimColor>  /skills  /skill &lt;name&gt;  Esc back</Text>
+        <Text dimColor>  /sessions  /skills  /skill &lt;name&gt;  Esc back</Text>
       </Box>
 
       <Box flexGrow={1} flexDirection="column" paddingX={1} paddingTop={1} overflow="hidden">
