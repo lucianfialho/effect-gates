@@ -1,16 +1,25 @@
 import { Effect } from "effect";
 import { Message, ChatResponse, Provider, ProviderError, Tool, ToolCall } from "../types.js";
 
+export interface AnthropicThinking {
+  /** Enable extended thinking. Requires model claude-3-7-sonnet or later. */
+  readonly enabled: boolean;
+  /** Token budget for thinking (default: 10000). Must be < max_tokens. */
+  readonly budgetTokens?: number;
+}
+
 export interface AnthropicConfig {
   readonly apiKey: string;
   readonly model?: string;
   readonly baseUrl?: string;
+  readonly thinking?: AnthropicThinking;
 }
 
 // ── Anthropic API types ─────────────────────────────────────────────────────
 
 type AnthropicContentBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
 
@@ -88,11 +97,20 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
             .map(toAnthropicMessage)
             .filter((m): m is AnthropicApiMessage => m !== null);
 
+          const thinkingEnabled = config.thinking?.enabled;
+          const budgetTokens = config.thinking?.budgetTokens ?? 10000;
+          // Thinking requires max_tokens > budget_tokens
+          const maxTokens = thinkingEnabled ? Math.max(16000, budgetTokens + 1000) : 4096;
+
           const body: Record<string, unknown> = {
             model,
             messages: conversationMessages,
-            max_tokens: 4096,
+            max_tokens: maxTokens,
           };
+
+          if (thinkingEnabled) {
+            body.thinking = { type: "enabled", budget_tokens: budgetTokens };
+          }
 
           if (systemMessage) {
             body.system = systemMessage.content;
@@ -119,6 +137,11 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
           }
 
           const data = (await response.json()) as AnthropicResponse;
+
+          const thinkingContent = data.content
+            .filter((c) => c.type === "thinking")
+            .map((c) => (c as { type: "thinking"; thinking: string }).thinking)
+            .join("\n");
 
           const textContent = data.content
             .filter((c) => c.type === "text")
@@ -150,6 +173,7 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
               totalTokens: data.usage.input_tokens + data.usage.output_tokens,
             },
             cost: inputCost + outputCost,
+            ...(thinkingContent ? { reasoningDetails: thinkingContent } : {}),
           } satisfies ChatResponse;
         },
         catch: (error: unknown) => ({

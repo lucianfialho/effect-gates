@@ -50,6 +50,9 @@ export type { AgentLoopConfig, AgentLoopResult, ProviderResponse } from "./agent
 export { defineCommand } from "./define-command.js";
 export type { CommandConfig } from "./define-command.js";
 
+export { makePatchTool, applyPatch } from "./patch.js";
+export type { PatchResult } from "./patch.js";
+
 export {
   createHarness,
   skill,

@@ -5,6 +5,11 @@ export interface OpenAIConfig {
   readonly apiKey: string;
   readonly model?: string;
   readonly baseUrl?: string;
+  /**
+   * Reasoning effort for o1/o3 models.
+   * @see https://platform.openai.com/docs/guides/reasoning
+   */
+  readonly reasoningEffort?: "low" | "medium" | "high";
 }
 
 // ── OpenAI API types ────────────────────────────────────────────────────────
@@ -103,11 +108,14 @@ export const makeOpenAIProvider = (config: OpenAIConfig): Provider => {
               return Array.isArray(converted) ? converted : [converted];
             });
 
+          // o1/o3 models don't support temperature or max_tokens; use reasoning_effort
+          const isReasoningModel = model.startsWith("o1") || model.startsWith("o3");
           const body: Record<string, unknown> = {
             model,
             messages: openAIMessages,
-            temperature: 0.7,
-            max_tokens: 4096,
+            ...(isReasoningModel
+              ? { reasoning_effort: config.reasoningEffort ?? "medium" }
+              : { temperature: 0.7, max_tokens: 4096 }),
           };
 
           if (tools && tools.length > 0) {
