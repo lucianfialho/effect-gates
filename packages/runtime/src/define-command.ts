@@ -43,7 +43,8 @@ const buildIsolatedEnv = (env?: Record<string, string | undefined>): Record<stri
   }
   if (env) {
     for (const [k, v] of Object.entries(env)) {
-      if (v !== undefined) result[k] = v;
+      // Skip empty strings — lets CLIs use their own stored auth (e.g. ~/.config/gws/)
+      if (v !== undefined && v !== "") result[k] = v;
     }
   }
   return result;
