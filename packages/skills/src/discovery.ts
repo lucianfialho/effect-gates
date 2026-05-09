@@ -98,6 +98,10 @@ interface RawSkillYaml {
   methodology?: string;
 }
 
+/** Exported for use by the connector loader */
+export const parseSkillYamlContent = (content: string): SkillConfig =>
+  parseSkillYaml(content);
+
 const parseSkillYaml = (content: string): SkillConfig => {
   const raw = yaml.load(content) as RawSkillYaml;
 

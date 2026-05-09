@@ -96,3 +96,6 @@ export type { SkillToolName } from "./skill-tools.js";
 
 export { loadMethodology, formatMethodologyForPrompt, getMethodologyPath } from "./methodology.js";
 export type { LoadedMethodology } from "./methodology.js";
+
+export { loadConnector, loadConnectors } from "./connectors.js";
+export type { Connector, ConnectorRegistry } from "./connectors.js";
