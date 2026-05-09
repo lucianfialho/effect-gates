@@ -1,0 +1,74 @@
+name: refactor
+description: Refactor code following methodology rules
+methodology: object-calisthenics
+initialState: read
+states:
+  - id: read
+    tool: read
+    params:
+      path: "{{inputs.target}}"
+  - id: analyze
+    prompt: |
+      You are analyzing code following Object Calisthenics principles.
+
+      CODE TO ANALYZE:
+      {{lastOutput}}
+
+      ANALYZE following these rules:
+
+      1. **one-level-indentation**: Methods should have only one level of indentation
+         - Find: nested if/while/for statements
+         - Suggest: extract inner logic to separate methods
+
+      2. **no-else**: Avoid ELSE using early returns
+         - Find: if/else returning different values
+         - Suggest: early return for one path
+
+      3. **wrap-primitives**: Encapsulate primitives that represent domain concepts
+         - Find: string used as email, cpf, phone, cep; int used as age, price
+         - Suggest: create Value Objects
+
+      4. **first-class-collections**: Collections should not be properties
+         - Find: array/List as class field without collection methods
+         - Suggest: create dedicated collection class
+
+      5. **one-dot**: Avoid excessive method chaining
+         - Find: $this->a()->b()->c()->d()
+         - Suggest: extract intermediate results
+
+      6. **no-abbreviations**: Use descriptive names
+         - Find: variables like $d, $n, $tmp, $ctx
+         - Suggest: full descriptive names
+
+      7. **classes-50-lines**: Classes should be under 50 lines
+         - Find: classes over 200 lines
+         - Suggest: split into smaller classes
+
+      8. **two-instance-variables**: Max 2 instance variables per class
+         - Find: classes with 5+ properties
+         - Suggest: split into multiple classes
+
+      9. **no-getters-setters**: Prefer behavior methods
+         - Find: classes with only getX/setX methods
+         - Suggest: add behavior methods like rename(), calculate(), etc.
+
+      Output JSON format:
+      {
+        "file": "{{inputs.target}}",
+        "issues": [
+          {
+            "rule": "rule-id",
+            "line": number or "multiple",
+            "description": "what was found",
+            "suggestion": "how to fix"
+          }
+        ],
+        "summary": "brief summary of findings"
+      }
+  - id: done
+    terminal: true
+transitions:
+  - from: read
+    to: analyze
+  - from: analyze
+    to: done

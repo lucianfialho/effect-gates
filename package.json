@@ -1,0 +1,23 @@
+{
+  "name": "gates-effect",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo \"No lint\"",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "dependencies": {
+    "@effect/schema": "^0.70.0",
+    "effect": "^3.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "@vitest/ui": "^1.0.0",
+    "typescript": "^5.4.0"
+  }
+}

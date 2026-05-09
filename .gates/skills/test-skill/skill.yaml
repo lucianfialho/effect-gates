@@ -1,0 +1,16 @@
+name: test-skill
+description: A simple test skill
+initialState: start
+states:
+  - id: start
+    tool: bash
+    params:
+      command: echo "Hello from skill"
+    prompt: "Starting skill execution"
+  - id: done
+    onSuccess: done
+contextSchema: {}
+transitions:
+  - from: start
+    to: done
+    condition: on_success

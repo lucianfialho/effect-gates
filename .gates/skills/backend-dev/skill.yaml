@@ -1,0 +1,13 @@
+name: backend-dev
+description: Backend development skill
+initialState: start
+states:
+  - id: start
+    tool: bash
+    params:
+      command: "echo 'Processing issue {{inputs.issue_number}} for backend'"
+  - id: done
+    terminal: true
+transitions:
+  - from: start
+    to: done

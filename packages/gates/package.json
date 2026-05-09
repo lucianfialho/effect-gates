@@ -1,0 +1,26 @@
+{
+  "name": "@gates-effect/gates",
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./bash-safety": "./dist/bash-safety/index.js",
+    "./read-large": "./dist/read-large/index.js",
+    "./read-dedup": "./dist/read-dedup/index.js",
+    "./metadata": "./dist/metadata/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "echo \"No lint\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  }
+}

@@ -1,0 +1,228 @@
+name: Object Calisthenics
+description: 9 regras de desenvolvimento para código orientado a objetos de verdade
+version: "1.0"
+
+rules:
+  - id: one-level-indentation
+    name: Apenas Um Nível de Indentação
+    description: Métodos devem ter apenas um nível de indentação
+    examples:
+      - before: |
+          function process() {
+            if (condition) {
+              while (loop) {
+                doSomething();
+              }
+            }
+          }
+        after: |
+          function process() {
+            if (!condition) return;
+            processLoop(loop);
+          }
+      - before: |
+          function validate() {
+            if (email) {
+              if (filter_var(email)) {
+                if (not duplicate) {
+                  save();
+                }
+              }
+            }
+          }
+        after: |
+          function validate() {
+            if (!email) return;
+            if (!isValid(email)) return;
+            if (isDuplicate(email)) return;
+            save();
+          }
+    patterns:
+      - "nested if statements"
+      - "while inside if inside while"
+      - "more than 1 indentation level"
+
+  - id: no-else
+    name: Nunca Use ELSE
+    description: Evite ELSE usando early returns
+    examples:
+      - before: |
+          function getStatus() {
+            if (user.active) {
+              return "active";
+            } else {
+              return "inactive";
+            }
+          }
+        after: |
+          function getStatus() {
+            if (user.active) return "active";
+            return "inactive";
+          }
+    patterns:
+      - "if / else return"
+      - "else if chaining"
+
+  - id: wrap-primitives
+    name: Encapsule Todos os Tipos Primitivos e Strings
+    description: Crie Value Objects para conceitos de domínio com validação
+    examples:
+      - before: |
+          class Customer {
+            constructor(
+              public string $email,
+              public string $cpf,
+              public int $age
+            ) {}
+          }
+        after: |
+          class Email {
+            private string $value;
+            constructor(string $email) {
+              if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new InvalidArgumentException('Email inválido');
+              }
+              $this->value = $email;
+            }
+          }
+          class CPF {
+            private string $value;
+            // validação completa com dígitos verificadores
+          }
+          class Age {
+            private int $value;
+            constructor(int $age) {
+              if ($age < 0 || $age > 120) {
+                throw new InvalidArgumentException('Idade inválida');
+              }
+              $this->value = $age;
+            }
+            function isMinor(): bool { return $this->value < 18; }
+            function isSenior(): bool { return $this->value >= 60; }
+          }
+    patterns:
+      - "string $email"
+      - "string $cpf"
+      - "string $phone"
+      - "string $cep"
+      - "int $age"
+      - "string $document"
+    anti_patterns:
+      - "validateEmail called in multiple classes"
+      - "validation logic duplicated"
+
+  - id: first-class-collections
+    name: First-Class Collections
+    description: Qualquer coleção não deve ser propriedade de outra classe
+    examples:
+      - before: |
+          class Order {
+            private array $items = [];
+            public function getItems(): array { return $this->items; }
+          }
+        after: |
+          class ItemsCollection {
+            private array $items = [];
+            public function add(Item $item): void { ... }
+            public function remove(string $id): void { ... }
+            public function total(): float { ... }
+          }
+          class Order {
+            private ItemsCollection $items;
+          }
+    patterns:
+      - "array $items as property"
+      - "List<> as field"
+
+  - id: one-dot
+    name: Um Ponto Por Linha
+    description: Evite chaining excessivo de métodos
+    examples:
+      - before: "$this->order->getCustomer()->getAddress()->getStreet()->getName()"
+        after: "$street = $order->getCustomerAddressStreet()"
+    patterns:
+      - "->getX()->getY()->getZ()"
+
+  - id: no-abbreviations
+    name: Não Abrevie
+    description: Nomes de classes e métodos devem ser descritivos
+    examples:
+      - before: "CustomerSvc, OrdCtrl, DbHelper"
+        after: "CustomerService, OrderController, DatabaseHelper"
+    patterns:
+      - "abbreviations under 3 chars"
+      - "single letter variables except in lambdas"
+
+  - id: classes-50-lines
+    name: Classes com Menos de 50 Linhas
+    description: Classes devem ter no máximo 50 linhas
+    patterns:
+      - "classes over 50 lines"
+    anti_patterns:
+      - "god classes"
+      - "classes with 20+ methods"
+
+  - id: two-instance-variables
+    name: Máximo 2 Variáveis de Instância
+    description: Classes não devem ter mais que 2 variáveis de instância
+    patterns:
+      - "classes with 3+ private properties"
+    anti_patterns:
+      - "classes tracking too much state"
+
+  - id: no-getters-setters
+    name: Sem Getters e Setters
+    description: Prefira métodos de comportamento sobre getters/setters
+    examples:
+      - before: |
+          class User {
+            public string $name;
+            public function getName(): string { return $this->name; }
+            public function setName(string $name): void { $this->name = $name; }
+          }
+        after: |
+          class User {
+            private string $name;
+            public function rename(string $newName): void {
+              if (empty($newName)) throw;
+              $this->name = $newName;
+            }
+          }
+    patterns:
+      - "public $property with getter/setter"
+    anti_patterns:
+      - "anemic domain models"
+
+guardrails:
+  - id: no-primitive-obsession
+    description: Não use tipos primitivos para conceitos de domínio
+  - id: no-method-length-violation
+    description: Métodos não devem exceder 15 linhas
+  - id: no-feature-envy
+    description: Método não deve acessar mais dados de outros objetos que do próprio
+
+patterns:
+  naming_conventions:
+    classes: "PascalCase"
+    methods: "camelCase"
+    variables: "camelCase"
+    constants: "UPPER_SNAKE_CASE"
+    value_objects: "PascalCase sem SufixoVO"
+  structure:
+    max_lines_per_class: 50
+    max_lines_per_method: 15
+    max_indentation_level: 1
+    max_instance_variables: 2
+
+evaluation:
+  heuristics:
+    - rule: "one-level-indentation"
+      check: "count indentation levels in methods"
+    - rule: "no-else"
+      check: "detect else keyword"
+    - rule: "wrap-primitives"
+      check: "identify string/int used as domain concepts"
+    - rule: "first-class-collections"
+      check: "identify array properties"
+    - rule: "no-abbreviations"
+      check: "flag variables under 4 chars"

@@ -1,0 +1,40 @@
+name: methodology-name
+description: Brief description of the methodology
+version: "1.0"
+
+rules:
+  - id: rule-id
+    name: Rule Name
+    description: What the rule enforces
+    examples:
+      - before: "code before"
+        after: "code after"
+    patterns:
+      - "pattern to match"
+    anti_patterns:
+      - "pattern to avoid"
+
+patterns:
+  naming_conventions:
+    classes: "PascalCase"
+    methods: "camelCase"
+    constants: "UPPER_SNAKE"
+  structure:
+    max_lines_per_file: 200
+    max_methods_per_class: 10
+    max_indentation_level: 2
+
+guardrails:
+  - id: no-broad-mutation
+    description: Avoid functions that mutate too many variables
+  - id: single-responsibility
+    description: One reason to change per module
+
+evaluation:
+  heuristics:
+    - rule: "One level of indentation"
+      check: "count indentation levels"
+    - rule: "No Else"
+      check: "detect if/else chains"
+    - rule: "Wrap primitives"
+      check: "identify primitive type usage"

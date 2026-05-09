@@ -1,0 +1,13 @@
+name: interpolate-test
+description: Test template interpolation
+initialState: start
+states:
+  - id: start
+    tool: bash
+    params:
+      command: echo '{"greeting":"hello","name":"{{inputs.name}}"}'
+  - id: done
+    terminal: true
+transitions:
+  - from: start
+    to: done

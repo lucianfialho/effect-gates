@@ -1,0 +1,38 @@
+name: self-builder
+description: Orchestrate gates creating gates - self-building agent
+initialState: analyze_goal
+states:
+  - id: analyze_goal
+    tool: bash
+    params:
+      command: "echo '{{inputs.task}}'"
+  - id: plan
+    description: Plan which skill to create based on task
+    prompt: |
+      You are planning a skill creation.
+
+      TASK: {{inputs.task}}
+
+      Create a complete skill.yaml file content for the requested skill.
+      Include all states, transitions, and parameters.
+  - id: create_skill
+    description: Create the skill file
+    tool: bash
+    params:
+      command: "mkdir -p .gates/skills/{{inputs.target_skill_name}} && echo '{{lastOutput}}' > .gates/skills/{{inputs.target_skill_name}}/skill.yaml"
+  - id: verify
+    description: Verify the skill was created
+    tool: bash
+    params:
+      command: "ls -la .gates/skills/{{inputs.target_skill_name}}/skill.yaml 2>/dev/null && echo 'SUCCESS' || echo 'FAILED'"
+  - id: done
+    terminal: true
+transitions:
+  - from: analyze_goal
+    to: plan
+  - from: plan
+    to: create_skill
+  - from: create_skill
+    to: verify
+  - from: verify
+    to: done

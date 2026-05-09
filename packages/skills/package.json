@@ -1,0 +1,28 @@
+{
+  "name": "@gates-effect/skills",
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./builtins": "./dist/builtin.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"No tests\"",
+    "lint": "echo \"No lint\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gates-effect/gates": "workspace:*",
+    "@gates-effect/runtime": "workspace:*",
+    "@gates-effect/sandbox": "workspace:*",
+    "effect": "^3.0.0",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.19.40",
+    "typescript": "^5.4.0"
+  }
+}

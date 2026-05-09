@@ -1,0 +1,25 @@
+{
+  "name": "@gates-effect/providers",
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./minimax": "./dist/minimax/index.js",
+    "./anthropic": "./dist/anthropic/index.js",
+    "./openai": "./dist/openai/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "echo \"No lint\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  }
+}

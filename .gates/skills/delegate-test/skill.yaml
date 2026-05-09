@@ -1,0 +1,21 @@
+name: delegate-test
+description: Test delegate_to functionality
+initialState: start
+states:
+  - id: start
+    tool: bash
+    params:
+      command: echo '{"specialist":"backend"}'
+  - id: delegate
+    description: Delegate to backend-dev skill
+    delegate_to: backend-dev
+    delegate_inputs:
+      issue_number: "{{inputs.issue_number}}"
+  - id: done
+    terminal: true
+    description: Done
+transitions:
+  - from: start
+    to: delegate
+  - from: delegate
+    to: done

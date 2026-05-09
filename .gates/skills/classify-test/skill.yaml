@@ -1,0 +1,27 @@
+name: classify-test
+description: Test conditional transitions with when clause
+initialState: start
+states:
+  - id: start
+    tool: bash
+    params:
+      command: echo '{"specialist":"backend"}' | cat
+  - id: classify
+    tool: bash
+    params:
+      command: echo '{"specialist":"frontend"}' | cat
+  - id: backend
+    description: "Backend path"
+  - id: frontend
+    description: "Frontend path"
+  - id: done
+    terminal: true
+transitions:
+  - from: start
+    to: classify
+  - from: classify
+    to: backend
+    when: "output.specialist == 'backend'"
+  - from: classify
+    to: frontend
+    when: "output.specialist == 'frontend'"

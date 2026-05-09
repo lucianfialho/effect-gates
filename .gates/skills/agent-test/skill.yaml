@@ -1,0 +1,27 @@
+name: agent-test
+description: Test prompt + template integration with LLM
+initialState: start
+states:
+  - id: start
+    tool: bash
+    params:
+      command: echo '{"code":"function test() { return 1; }"}'
+  - id: analyze
+    prompt: |
+      Analyze this code and suggest refactoring:
+
+      {{lastOutput}}
+
+      Follow these rules:
+      - Only one level of indentation
+      - No else statements
+      - Wrap primitives
+
+      Output JSON with: suggestions (array of strings)
+  - id: done
+    terminal: true
+transitions:
+  - from: start
+    to: analyze
+  - from: analyze
+    to: done

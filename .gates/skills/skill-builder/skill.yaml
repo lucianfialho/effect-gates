@@ -1,0 +1,14 @@
+name: skill-builder
+description: Create new skill files from delegated input
+initialState: create
+states:
+  - id: create
+    description: Create the skill file
+    tool: bash
+    params:
+      command: "mkdir -p .gates/skills/{{inputs.skill_name}} && cat > .gates/skills/{{inputs.skill_name}}/skill.yaml << 'EOF'\n{{inputs.skill_yaml}}\nEOF"
+  - id: done
+    terminal: true
+transitions:
+  - from: create
+    to: done

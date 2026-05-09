@@ -1,0 +1,155 @@
+name: SOLID Principles
+description: Five principles of object-oriented design
+version: "1.0"
+
+rules:
+  - id: srp
+    name: Single Responsibility Principle
+    description: Uma classe deve ter apenas uma razão para mudar
+    examples:
+      - before: |
+          class UserManager {
+            function save(User $u) { ... }
+            function sendEmail(User $u) { ... }
+            function generateReport(User $u) { ... }
+            function validatePermissions(User $u) { ... }
+          }
+        after: |
+          class UserRepository { save, find, delete }
+          class EmailService { send, template }
+          class ReportGenerator { generate, format }
+          class PermissionService { check, grant, revoke }
+    patterns:
+      - "class with 5+ methods doing different things"
+      - "class name contains multiple concepts (UserManagerReportHelper)"
+
+  - id: ocp
+    name: Open/Closed Principle
+    description: Entidades de software devem ser abertas para extensão e fechadas para modificação
+    examples:
+      - before: |
+          function calculateDiscount(Customer $customer) {
+            if ($customer->type === 'premium') {
+              return 0.2;
+            } elseif ($customer->type === 'standard') {
+              return 0.1;
+            }
+            return 0;
+          }
+        after: |
+          interface DiscountStrategy {
+            function getDiscount(): float;
+          }
+          class PremiumDiscount implements DiscountStrategy { getDiscount() { return 0.2; } }
+          class StandardDiscount implements DiscountStrategy { getDiscount() { return 0.1; } }
+          function calculateDiscount(DiscountStrategy $strategy) {
+            return $strategy->getDiscount();
+          }
+    patterns:
+      - "if/else chain for type checking"
+      - "modifying existing class for new feature"
+
+  - id: lsp
+    name: Liskov Substitution Principle
+    description: Objetos de uma classe derivada devem poder substituir objetos da classe base
+    examples:
+      - before: |
+          class Rectangle {
+            width, height
+            setWidth, setHeight
+          }
+          class Square extends Rectangle {
+            setWidth($w) { height = $w }
+            setHeight($h) { width = $h } // Viola LSP!
+          }
+        after: |
+          interface Shape { area(): float }
+          class Rectangle implements Shape { width, height, area() { return w*h } }
+          class Square implements Shape { side, area() { return side*side } }
+    patterns:
+      - "override method to do nothing"
+      - "throw exception in overriding method"
+      - "check instanceof in overriding method"
+
+  - id: isp
+    name: Interface Segregation Principle
+    description: Prefira muitos Interfaces específicos a um Interface genérico
+    examples:
+      - before: |
+          interface Worker {
+            work(): void
+            eat(): void
+            sleep(): void
+          }
+          class Robot implements Worker {
+            work() { ... }
+            eat() { throw new UnsupportedException() }
+            sleep() { throw new UnsupportedException() }
+          }
+        after: |
+          interface Workable { work(): void }
+          interface Eatable { eat(): void }
+          interface Sleepable { sleep(): void }
+          class Human implements Workable, Eatable, Sleepable { ... }
+          class Robot implements Workable { ... }
+    patterns:
+      - "interfaces with 10+ methods"
+      - "classes implementing interfaces with unused methods"
+
+  - id: dip
+    name: Dependency Inversion Principle
+    description: Dependa de abstrações, não de implementações concretas
+    examples:
+      - before: |
+          class MySQLConnection {
+            connect() { ... }
+          }
+          class UserRepository {
+            private MySQLConnection $db;
+            constructor() { $this->db = new MySQLConnection(); }
+          }
+        after: |
+          interface DatabaseConnection { connect(): void }
+          class MySQLConnection implements DatabaseConnection { ... }
+          class PostgreSQLConnection implements DatabaseConnection { ... }
+          class UserRepository {
+            private DatabaseConnection $db;
+            constructor(DatabaseConnection $db) { $this->db = $db; }
+          }
+    patterns:
+      - "new ClassName() inside another class"
+      - "concrete class in constructor"
+      - "static method calls to concrete classes"
+
+guardrails:
+  - id: no-violation-srp
+    description: Classe tem apenas uma responsabilidade
+  - id: open-for-extension
+    description: Novas features não modificam código existente
+  - id: substitutable
+    description: Classes derivadas são substituíveis pela base
+  - id: segregated-interfaces
+    description: Interfaces são específicas e coesas
+  - id: dependencies-abstract
+    description: Dependencies são abstrações
+
+patterns:
+  structure:
+    max_methods_per_class: 10
+    min_interfaces_per_class: 1
+  naming_conventions:
+    interfaces: "I{nome} ou {nome}Interface"
+    abstract_classes: "Abstract{nome}"
+
+evaluation:
+  heuristics:
+    - rule: "srp"
+      check: "count responsibilities per class"
+    - rule: "ocp"
+      check: "detect class modification for new features"
+    - rule: "lsp"
+      check: "check method signatures in inheritance"
+    - rule: "isp"
+      check: "count methods per interface"
+    - rule: "dip"
+      check: "detect new ClassName() in constructors"
