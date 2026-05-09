@@ -892,15 +892,18 @@ harness-ui start
     │
     ├── Hono HTTP server (localhost:3583)
     │     GET  /api/harnesses              lista harnesses descobertos
-    │     GET  /api/skills                 lista skills de .gates/skills/
-    │     POST /api/sessions               cria sessão
-    │     POST /api/sessions/:id/chat      chat com tool calling (SSE)
-    │     POST /api/sessions/:id/skill     executa skill com eventos em tempo real (SSE)
-    │     GET  /api/sessions/:id/history   histórico da sessão
+    │     GET    /api/skills                 lista skills de .gates/skills/
+    │     GET    /api/sessions               lista sessões persistidas
+    │     POST   /api/sessions               cria sessão (ou retoma com resumeSessionId)
+    │     DELETE /api/sessions/:id           apaga sessão
+    │     POST   /api/sessions/:id/chat      chat com tool calling (SSE)
+    │     POST   /api/sessions/:id/skill     executa skill com eventos em tempo real (SSE)
+    │     GET    /api/sessions/:id/history   histórico da sessão
     │
     └── Ink TUI (React para terminal)
-          HarnessSelect  seleção com ↑↓↵
-          Chat           chat + tool calling + /skill + /skills
+          HarnessSelect  seleção com ↑↓↵, s → sessions
+          SessionsList   lista sessões persistidas, retomar, apagar
+          Chat           chat + tool calling + /sessions + /skills + /skill
           SkillsList     navegar e lançar skills
           SkillExecution visualização em tempo real da state machine
 ```
@@ -958,14 +961,38 @@ Foque em: segurança, performance e legibilidade.`,
 };
 ```
 
+### Sessions list
+
+Acessível de três formas:
+- Tecla `s` na tela de seleção de harness
+- Comando `/sessions` no chat
+- Ao iniciar o harness-ui com sessões existentes
+
+```
+◆ Sessions  3 session(s)
+
+▶  Code Reviewer     8 msgs   2m ago
+     "liste todos os endpoints da API"
+     [b316ac7a]…
+
+   Code Assistant    4 msgs   1h ago
+     "quantos pacotes existem?"
+     [d380bd7f]…
+
+↑↓ navigate  ↵ resume  d delete  Esc back
+```
+
+Cada sessão mostra: nome do harness, contagem de mensagens, tempo relativo (`2m ago`, `1h ago`, `3d ago`) e preview da última mensagem do usuário. Sessões são persistidas em `~/.gates/sessions/` e sobrevivem a reinicializações do servidor.
+
 ### Comandos no chat
 
 | Comando | Ação |
 |---|---|
+| `/sessions` | Abre a lista de sessões para retomar uma conversa anterior |
 | `/skill <nome>` | Executa um skill YAML com visualização em tempo real |
 | `/skill <nome> key=value` | Executa skill com inputs inline |
 | `/skills` | Abre a tela de seleção de skills |
-| `/clear` | Limpa o histórico da conversa |
+| `/clear` | Limpa o histórico da conversa atual |
 | Esc | Volta para seleção de harness |
 
 ### Visualização de skill em tempo real
@@ -984,12 +1011,30 @@ Os eventos `state_enter`, `tool_call`, `tool_result`, `state_exit` e `transition
 
 ### Keyboard shortcuts
 
+**Seleção de harness:**
+
 | Tecla | Ação |
 |---|---|
-| `↑` `↓` | Navegar listas |
-| `↵` | Selecionar |
-| `Esc` / `Ctrl+B` | Voltar / cancelar |
-| `q` | Sair (tela de seleção) |
+| `↑` `↓` | Navegar harnesses |
+| `↵` | Iniciar nova sessão |
+| `s` | Abrir sessions list |
+| `q` | Sair |
+
+**Sessions list:**
+
+| Tecla | Ação |
+|---|---|
+| `↑` `↓` | Navegar sessões |
+| `↵` | Retomar sessão selecionada |
+| `d` | Apagar sessão selecionada |
+| `Esc` | Voltar à seleção de harness |
+
+**Chat:**
+
+| Tecla | Ação |
+|---|---|
+| `↵` | Enviar mensagem |
+| `Esc` | Voltar / cancelar operação em curso |
 | `Ctrl+C` | Forçar saída |
 
 ### API keys
