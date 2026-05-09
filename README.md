@@ -317,12 +317,16 @@ const data     = yield* history.toData({ sessionId });  // serializar
 
 ```typescript
 import { createHarness, skill, role } from "@gates-effect/runtime";
+import type { CompactionScope } from "@gates-effect/runtime";
 
 const harness = createHarness({
   provider,
   roles: [
-    role("engenheiro", "Você é um engenheiro sênior de software.", { model: "MiniMax-M2.7" }),
-    role("revisor",    "Você é um revisor de código criterioso."),
+    role("engenheiro", "Você é um engenheiro sênior de software.", {
+      model: "MiniMax-M2.7",
+      compaction: { maxContextTokens: 12000, thresholdPercent: 75 },
+    }),
+    role("revisor", "Você é um revisor de código criterioso."),
   ],
   skills: new Map([
     ["analise", {
@@ -348,7 +352,44 @@ const resultado = yield* session.skill("analise", {
 });
 ```
 
-### Compactação
+### Compactação por escopo no Harness
+
+O Harness suporta compactação automática de histórico em três escopos com prioridade **call > role > nenhum**.
+
+Quando o histórico estimado ultrapassa o threshold, o LLM é chamado para resumir as mensagens mais antigas. O `historyRef` é atualizado com `[summaryMessage, ...recentMessages]`.
+
+**`CompactionScope`:**
+
+| Campo | Default | Descrição |
+|---|---|---|
+| `maxContextTokens` | 8000 | Limite em tokens estimados que dispara |
+| `thresholdPercent` | 80 | % do limite necessária para disparar (0–100) |
+| `keepRecentMessages` | 4 | Mensagens recentes mantidas verbatim após o resumo |
+
+```typescript
+// Nível de role — aplica em todos os prompts dessa role
+role("analista", "Você analisa repositórios.", {
+  compaction: {
+    maxContextTokens: 8000,
+    thresholdPercent: 75,
+    keepRecentMessages: 4,
+  },
+})
+
+// Nível de chamada — só neste prompt (sobrescreve o role)
+yield* session.prompt("analise estes arquivos", {
+  compaction: { maxContextTokens: 4000, keepRecentMessages: 2 },
+})
+
+// Desabilitar para uma chamada específica, mesmo com compaction no role
+yield* session.prompt("resposta rápida", { compaction: false })
+```
+
+Se a chamada de sumarização falhar, o histórico original é mantido sem erro.
+
+### Compactação de contexto (nível de Agent)
+
+Compactação automática baseada em orçamento de tokens para o `makeAgent`. Disparada quando `usagePercent` ou contagem de entradas ultrapassa os thresholds configurados no `AgentConfig.compactionConfig`.
 
 ```typescript
 import { runCompaction, createCompactionTrigger, withCompaction } from "@gates-effect/runtime";
@@ -361,6 +402,8 @@ const { shouldCompact, triggeredBy } = yield* trigger.trigger(tokens, entryCount
 const result = yield* runCompaction(history, { modelId, provider, triggeredBy });
 // result: { compacted, tokensBefore, tokensAfter, summary, triggeredBy }
 ```
+
+> Para compactação no Harness com granularidade por role ou por chamada, ver **Compactação por escopo no Harness** acima.
 
 ### Eventos e telemetria
 
