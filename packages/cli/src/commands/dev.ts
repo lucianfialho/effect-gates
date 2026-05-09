@@ -3,8 +3,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { getProviderConfig, type ProviderType } from "../providers/index.js";
 import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates-effect/providers";
-import type { Provider, Message as ProviderMessage } from "@gates-effect/providers";
-import { type Message } from "@gates-effect/runtime";
+import type { Provider, Message as ProviderMessage, ToolResult as ProviderToolResult } from "@gates-effect/providers";
+import { makeSandbox } from "@gates-effect/sandbox";
+import { toolsMap, type Tool } from "@gates-effect/runtime";
 
 interface DevOptions {
   watch?: string;
@@ -24,10 +25,28 @@ const createProvider = (providerName: ProviderType, apiKey: string, model?: stri
   }
 };
 
-const toProviderMessage = (msg: Message): ProviderMessage => ({
-  role: msg.role as "user" | "assistant" | "system" | "context",
-  content: msg.content,
-  timestamp: msg.timestamp,
+const PROVIDER_TOOLS: Array<{ name: string; description: string; parameters: Record<string, unknown> }> = [
+  { name: "read",  description: "Read file contents",          parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+  { name: "write", description: "Write content to a file",     parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] } },
+  { name: "bash",  description: "Execute a bash command",      parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
+  { name: "glob",  description: "Find files matching a pattern", parameters: { type: "object", properties: { pattern: { type: "string" } }, required: ["pattern"] } },
+  { name: "grep",  description: "Search for text in files",    parameters: { type: "object", properties: { query: { type: "string" }, path: { type: "string" } }, required: ["query"] } },
+  { name: "edit",  description: "Edit a file by replacing text", parameters: { type: "object", properties: { path: { type: "string" }, oldText: { type: "string" }, newText: { type: "string" } }, required: ["path", "oldText", "newText"] } },
+];
+
+const executeTool = (name: string, args: string, tools: Map<string, Tool>): Effect.Effect<{ content: string; isError: boolean }> =>
+  Effect.gen(function* () {
+    const tool = tools.get(name);
+    if (!tool) return { content: `Tool "${name}" not found`, isError: true };
+    const result = yield* tool.execute(JSON.parse(args));
+    return { content: result.content, isError: result.isError ?? false };
+  });
+
+const formatToolResult = (toolCallId: string, content: string): ProviderMessage => ({
+  role: "user",
+  content: "",
+  timestamp: Date.now(),
+  toolResults: [{ toolCallId, content } satisfies ProviderToolResult],
 });
 
 interface WatchState {
@@ -78,14 +97,54 @@ const watchPatterns = (patterns: string[], onChange: () => void, state: WatchSta
   });
 };
 
-const runDev = (prompt: string, provider: Provider) =>
+const runDev = (prompt: string, provider: Provider, maxIterations: number) =>
   Effect.gen(function* () {
-    const messages: ProviderMessage[] = [
+    const sandbox = yield* makeSandbox("local");
+    const tools = toolsMap(sandbox);
+
+    let messages: ProviderMessage[] = [
       { role: "user", content: prompt, timestamp: Date.now() }
     ];
+    let iteration = 0;
+    let finalContent = "";
 
-    const response = yield* provider.chat(messages);
-    return response.content;
+    while (iteration < maxIterations) {
+      const response = yield* Effect.mapError(
+        provider.chat(messages, PROVIDER_TOOLS),
+        (e) => new Error(e.message)
+      );
+
+      finalContent = response.content;
+
+      if (!response.toolCalls || response.toolCalls.length === 0) break;
+
+      console.log(`\n🔧 Iteration ${iteration + 1}: ${response.toolCalls.length} tool call(s)`);
+      for (const tc of response.toolCalls) {
+        console.log(`   ${tc.name}(${tc.arguments})`);
+      }
+
+      messages.push({
+        role: "assistant",
+        content: response.content,
+        timestamp: Date.now(),
+        toolCalls: response.toolCalls,
+      });
+
+      const results = yield* Effect.all(
+        response.toolCalls.map((tc) =>
+          Effect.map(executeTool(tc.name, tc.arguments, tools), (r) => ({ tc, r }))
+        )
+      );
+
+      for (const { tc, r } of results) {
+        console.log(`   → ${r.content.substring(0, 120)}${r.content.length > 120 ? "..." : ""}`);
+        messages.push(formatToolResult(tc.id, r.content));
+      }
+
+      iteration++;
+    }
+
+    return { content: finalContent, iterations: iteration };
   });
 
 const doDev = (prompt: string, options: DevOptions): void => {
@@ -106,13 +165,16 @@ const doDev = (prompt: string, options: DevOptions): void => {
 
   const state: WatchState = { running: false, debounceTimer: null };
 
+  const maxIterations = options.maxIterations ?? 10;
+
   const execute = () => {
     state.running = true;
     console.log("\n🔄 Running...\n");
 
-    Effect.runPromise(runDev(prompt, provider)).then(
-      (result) => {
-        console.log(`📤 Output:\n${result}`);
+    Effect.runPromise(runDev(prompt, provider, maxIterations)).then(
+      ({ content, iterations }) => {
+        console.log(`\n📤 Output:\n${content}`);
+        if (iterations > 0) console.log(`\n  [Iterations: ${iterations}]`);
         state.running = false;
       },
       (e: unknown) => {
