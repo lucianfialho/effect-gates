@@ -200,7 +200,10 @@ export const makeSkillExecutor = (
     const abortedRef = yield* Ref.make(false);
 
     const emitEvent = (event: SkillEvent): Effect.Effect<void> =>
-      Ref.update(eventsRef, (events) => [...events, event]);
+      Effect.gen(function* () {
+        yield* Ref.update(eventsRef, (events) => [...events, event]);
+        executorConfig?.onEvent?.(event);
+      });
 
     const executeState = (
       state: SkillState,

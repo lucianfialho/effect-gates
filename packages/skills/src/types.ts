@@ -130,6 +130,8 @@ export interface SkillExecutorConfig {
   readonly maxTransitions?: number;
   /** Base path for resolving {{file:...}} in prompts (default: process.cwd()) */
   readonly basePath?: string;
+  /** Called synchronously on every skill event — use for real-time streaming */
+  readonly onEvent?: (event: SkillEvent) => void;
 }
 
 export interface SkillError {

@@ -8,6 +8,7 @@ import { makeFileSessionStore, SessionHistory, toolsMap } from "@gates-effect/ru
 import type { Message } from "@gates-effect/runtime";
 import type { Message as ProviderMessage, ToolCall } from "@gates-effect/providers";
 import { makeLocalSandbox } from "@gates-effect/sandbox";
+import { discoverSkills, makeSkillExecutor, createSandboxToolExecutor } from "@gates-effect/skills";
 import type { LoadedHarness } from "../harness/loader.js";
 import type { HarnessConfig } from "../harness/define.js";
 
@@ -221,6 +222,82 @@ export function createServer(harnesses: LoadedHarness[]) {
     const history = await Effect.runPromise(SessionHistory.fromData(data));
     const messages = await Effect.runPromise(history.buildContext());
     return c.json({ messages });
+  });
+
+  // ── Skills ──────────────────────────────────────────────────────────────────
+
+  app.get("/api/skills", async (c) => {
+    const skills = await Effect.runPromise(
+      Effect.result(discoverSkills(process.cwd() + "/.gates/skills"))
+    );
+    if (skills._tag === "Failure") return c.json([]);
+    return c.json(
+      skills.success.map((s) => ({
+        name: s.name,
+        description: s.config.description ?? "",
+        initialState: s.config.initialState,
+        states: s.config.states.map((st) => st.id),
+      }))
+    );
+  });
+
+  // Run a skill with real-time state machine event streaming
+  app.post("/api/sessions/:id/skill", (c) => {
+    const sessionId = c.req.param("id");
+    return stream(c, async (s) => {
+      const write = (type: string, data: unknown) => s.write(sse(type, data));
+      try {
+        const { skillName, input = {} } = await c.req.json<{
+          skillName: string;
+          input?: Record<string, unknown>;
+        }>();
+
+        const meta = sessions.get(sessionId);
+        if (!meta) { await write("error", { message: "Session not found" }); return; }
+
+        // Find skill config
+        const allSkills = await Effect.runPromise(
+          Effect.result(discoverSkills(process.cwd() + "/.gates/skills"))
+        );
+        if (allSkills._tag === "Failure") {
+          await write("error", { message: "Failed to load skills" }); return;
+        }
+        const found = allSkills.success.find((s) => s.name === skillName || s.config.name === skillName);
+        if (!found) {
+          await write("error", { message: `Skill "${skillName}" not found` }); return;
+        }
+
+        await write("skill_start", { name: found.name, states: found.config.states.map((st) => st.id) });
+
+        const sandbox = await Effect.runPromise(makeLocalSandbox({ cwd: process.cwd() }));
+        const executorConfig = {
+          ...createSandboxToolExecutor(sandbox),
+          onEvent: (event: { type: string; state?: string; transition?: string; data?: unknown }) => {
+            s.write(sse("skill_event", event)).catch(() => {});
+          },
+        };
+
+        const executor = await Effect.runPromise(makeSkillExecutor(found.config, executorConfig));
+        const ctx = await Effect.runPromise(
+          Effect.result(executor.execute(input as Record<string, unknown>))
+        );
+
+        if (ctx._tag === "Failure") {
+          await write("skill_error", { message: `${ctx.failure.code}: ${ctx.failure.message}` });
+          return;
+        }
+
+        await write("skill_complete", {
+          name: found.name,
+          state: ctx.success.state,
+          results: ctx.success.results,
+          errors: ctx.success.errors,
+          lastOutput: ctx.success.lastOutput,
+        });
+      } catch (err) {
+        await write("error", { message: String(err) });
+      }
+    });
   });
 
   return app;
