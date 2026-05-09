@@ -101,7 +101,7 @@ const chunkByBoundaries = (content: string, filePath: string): CodeChunk[] => {
 
 // ── File discovery ────────────────────────────────────────────────────────────
 
-const SUPPORTED_EXTENSIONS = [".ts", ".tsx", ".js", ".mjs", ".py", ".go", ".rs"];
+const SUPPORTED_EXTENSIONS = [".ts", ".tsx", ".js", ".mjs", ".py", ".go", ".rs", ".md"];
 
 const discoverFiles = (rootPath: string, extensions = SUPPORTED_EXTENSIONS): string[] => {
   const results: string[] = [];

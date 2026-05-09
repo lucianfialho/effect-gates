@@ -58,7 +58,6 @@ Built on Effect v4 for end-to-end type safety and composability.
 | [`@gates-effect/sandbox`](packages/sandbox) | Local execution with path traversal and credential isolation |
 | [`@gates-effect/gates`](packages/gates) | Atomic primitives: bash safety, dedup, file metadata |
 | [`@gates-effect/harness-ui`](packages/harness-ui) | Terminal UI — chat, sidebar, skill visualization |
-| [`@gates-effect/wiki`](packages/wiki) | Markdown knowledge base with full-text search |
 | [`@gates-effect/cli`](packages/cli) | CLI: `gates run`, `chat`, `resume`, `dev`, `skill` |
 
 ---
