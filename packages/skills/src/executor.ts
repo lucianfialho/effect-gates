@@ -10,6 +10,7 @@ import type {
   SkillExecutorConfig,
   SkillError,
 } from "./types.js";
+import { interpolateTemplate } from "./interpolate.js";
 
 export const MAX_TRANSITIONS = 100;
 
@@ -171,84 +172,23 @@ const createEvent = (
   transition,
 });
 
-const interpolate = (template: string, context: SkillContext): string => {
-  let result = template;
-
-  const inputMatches = template.match(/\{\{inputs\.(\w+)\}\}/g);
-  if (inputMatches) {
-    for (const match of inputMatches) {
-      const key = match.replace("{{inputs.", "").replace("}}", "");
-      const value = context.input[key];
-      if (value !== undefined) {
-        result = result.replace(match, String(value));
-      }
-    }
-  }
-
-  if (context.lastOutput !== undefined) {
-    const lastOutputStr = typeof context.lastOutput === 'object' 
-      ? JSON.stringify(context.lastOutput) 
-      : String(context.lastOutput);
-
-    result = result.replace(/\{\{lastOutput\}\}/g, lastOutputStr);
-
-    if (typeof context.lastOutput === 'object') {
-      const outputObj = context.lastOutput as Record<string, unknown>;
-      const lastOutputFieldMatches = template.match(/\{\{lastOutput\.(\w+)\}\}/g);
-      if (lastOutputFieldMatches) {
-        for (const match of lastOutputFieldMatches) {
-          const field = match.replace("{{lastOutput.", "").replace("}}", "");
-          const value = outputObj[field];
-          if (value !== undefined) {
-            result = result.replace(match, String(value));
-          }
-        }
-      }
-    }
-  }
-
-  const outputMatches = template.match(/\{\{outputs\.(\w+)\}\}/g);
-  if (outputMatches && context.lastOutput && typeof context.lastOutput === "object") {
-    for (const match of outputMatches) {
-      const field = match.replace("{{outputs.", "").replace("}}", "");
-      const outputObj = context.lastOutput as Record<string, unknown>;
-      const value = outputObj[field];
-      if (value !== undefined) {
-        result = result.replace(match, String(value));
-      }
-    }
-  }
-
-  const methodologyMatches = template.match(/\{\{methodology\.(\w+)\}\}/g);
-  if (methodologyMatches && context.metadata.methodology) {
-    const methodology = context.metadata.methodology as Record<string, unknown>;
-    for (const match of methodologyMatches) {
-      const key = match.replace("{{methodology.", "").replace("}}", "");
-      const value = methodology[key];
-      if (value !== undefined) {
-        result = result.replace(match, String(value));
-      }
-    }
-  }
-
-  return result;
-};
-
 const interpolateParams = (
   params: Record<string, unknown> | undefined,
-  context: SkillContext
-): Record<string, unknown> => {
-  if (!params) return {};
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string") {
-      result[key] = interpolate(value, context);
-    } else {
-      result[key] = value;
+  context: SkillContext,
+  basePath?: string
+): Effect.Effect<Record<string, unknown>> =>
+  Effect.gen(function* () {
+    if (!params) return {};
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === "string") {
+        result[key] = yield* interpolateTemplate(value, context, { basePath });
+      } else {
+        result[key] = value;
+      }
     }
-  }
-  return result;
-};
+    return result;
+  });
 
 export const makeSkillExecutor = (
   config: SkillConfig,
@@ -273,7 +213,8 @@ export const makeSkillExecutor = (
           yield* emitEvent(createEvent("tool_call", { tool: state.tool }, state.id));
 
           const executor = executorConfig?.executeTool ?? defaultToolExecutor;
-          const mergedParams = { ...context.input, ...interpolateParams(state.params, context) };
+          const interpolated = yield* interpolateParams(state.params, context, executorConfig?.basePath);
+          const mergedParams = { ...context.input, ...interpolated };
           const result = yield* Effect.result(
             executor(state.tool, mergedParams, context).pipe(
               Effect.timeout(state.timeout ? state.timeout : 60000)
@@ -292,7 +233,7 @@ export const makeSkillExecutor = (
 
         if (state.prompt) {
           const executor = executorConfig?.executePrompt ?? defaultPromptExecutor;
-          const interpolatedPrompt = interpolate(state.prompt, context);
+          const interpolatedPrompt = yield* interpolateTemplate(state.prompt, context, { basePath: executorConfig?.basePath });
           const result = yield* Effect.result(executor(interpolatedPrompt, context));
 
           if (result._tag === "Failure") {
@@ -311,7 +252,7 @@ export const makeSkillExecutor = (
             const interpolatedInputs: Record<string, string> = {};
             if (state.delegateInputs) {
               for (const [key, value] of Object.entries(state.delegateInputs)) {
-                interpolatedInputs[key] = interpolate(value, context);
+                interpolatedInputs[key] = yield* interpolateTemplate(value, context, { basePath: executorConfig.basePath });
               }
             }
             const result = yield* Effect.result(
@@ -327,7 +268,7 @@ export const makeSkillExecutor = (
             const interpolatedInputs: Record<string, string> = {};
             if (state.delegateInputs) {
               for (const [key, value] of Object.entries(state.delegateInputs)) {
-                interpolatedInputs[key] = interpolate(value, context);
+                interpolatedInputs[key] = yield* interpolateTemplate(value, context, { basePath: executorConfig?.basePath });
               }
             }
             delegateOutput = { delegated: state.delegateTo, inputs: interpolatedInputs };

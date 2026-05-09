@@ -87,6 +87,9 @@ export type {
 
 export { makeSkillExecutor, createSkillFromYaml, validateSkillConfig } from "./executor.js";
 
+export { interpolateTemplate, processConditionals, evaluateCondition, injectFiles, resolveContextValue } from "./interpolate.js";
+export type { InterpolateOptions } from "./interpolate.js";
+
 export type { DiscoveredSkill } from "./discovery.js";
 export { discoverSkills, loadSkillFromDirectory, getSkillPath } from "./discovery.js";
 

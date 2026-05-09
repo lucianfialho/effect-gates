@@ -128,6 +128,8 @@ export interface SkillExecutorConfig {
     context: SkillContext
   ) => Effect.Effect<unknown, Error>;
   readonly maxTransitions?: number;
+  /** Base path for resolving {{file:...}} in prompts (default: process.cwd()) */
+  readonly basePath?: string;
 }
 
 export interface SkillError {
