@@ -47,6 +47,9 @@ export { toolResult, toolError, makeToolCall } from "./tools.js";
 export { runAgentLoop } from "./agent-loop.js";
 export type { AgentLoopConfig, AgentLoopResult, ProviderResponse } from "./agent-loop.js";
 
+export { defineCommand } from "./define-command.js";
+export type { CommandConfig } from "./define-command.js";
+
 export {
   createHarness,
   skill,

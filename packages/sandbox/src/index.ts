@@ -9,6 +9,17 @@ export interface SandboxConfig {
   readonly cwd?: string;
   readonly env?: Record<string, string>;
   readonly timeout?: number;
+  /**
+   * Secrets explicitly granted to this sandbox (e.g. GITHUB_TOKEN, NPM_TOKEN).
+   * Always overlaid on top of env, never exposed to the outside.
+   */
+  readonly credentials?: Record<string, string>;
+  /**
+   * When true, commands only receive PATH/HOME and a small safe baseline
+   * plus `env` and `credentials` — process.env is NOT passed through.
+   * Prevents accidental credential leakage between agents.
+   */
+  readonly isolated?: boolean;
 }
 
 export interface Sandbox {
@@ -105,6 +116,32 @@ export const makeInMemorySandbox = (config?: SandboxConfig): Effect.Effect<Sandb
     return { run, writeFile, readFile, listDir, exists, cwd };
   });
 
+const SAFE_ENV_KEYS = [
+  "PATH", "HOME", "LANG", "LC_ALL", "TERM", "USER", "LOGNAME",
+  "SHELL", "TMPDIR", "TMP", "TEMP", "PWD",
+] as const;
+
+const buildCommandEnv = (config?: SandboxConfig): Record<string, string> => {
+  if (!config?.isolated) {
+    return {
+      ...nodeProcess.env,
+      ...(config?.env ?? {}),
+      ...(config?.credentials ?? {}),
+    } as Record<string, string>;
+  }
+
+  const base: Record<string, string> = {};
+  for (const key of SAFE_ENV_KEYS) {
+    const val = nodeProcess.env[key];
+    if (val) base[key] = val;
+  }
+  return {
+    ...base,
+    ...(config.env ?? {}),
+    ...(config.credentials ?? {}),
+  };
+};
+
 const assertWithinCwd = (filePath: string, cwd: string): SandboxError | null => {
   const resolved = path.resolve(cwd, filePath);
   const root = path.resolve(cwd);
@@ -126,7 +163,7 @@ export const makeLocalSandbox = (config?: SandboxConfig): Effect.Effect<Sandbox>
           cwd,
           encoding: "utf-8",
           timeout,
-          env: { ...nodeProcess.env, ...config?.env },
+          env: buildCommandEnv(config),
         });
         return result.stdout + result.stderr;
       },
