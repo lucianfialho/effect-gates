@@ -1126,3 +1126,83 @@ Effect.runSync(programaSincrono);
   sessions/              # sessões persistidas pelo FileSessionStore
   config.json            # API keys
 ```
+
+---
+
+## Changelog
+
+### [0.1.0] — 2026-05-09
+
+#### `@gates-effect/harness-ui` — Terminal UI
+- Sessions list screen: lista sessões persistidas, retoma com `↵`, apaga com `d`
+- Skills em tempo real: `/skill <nome>` com visualização da state machine (○ ⟳ ✓ ✗)
+- Tela de skills: `/skills` para navegar e lançar skills disponíveis
+- Tool calling inline: exibe `⟳ bash(...)` e resultado durante execução
+- Comando `/sessions` no chat para acessar sessões anteriores
+- Movido para o monorepo — usa @gates-effect/{runtime,providers,sandbox,skills} diretamente
+
+#### `@gates-effect/skills` — Interpolação estendida
+- `{{file:caminho/arquivo.md}}` — injeta conteúdo de arquivo no prompt
+- `{% if cond %}...{% else %}...{% endif %}` — blocos condicionais com nesting
+- Parser stack-based para condicionais (sem `new Function`, sem `eval`)
+- `onEvent` callback no `SkillExecutorConfig` para streaming em tempo real
+- `SkillExecutorConfig.basePath` para resolução de `{{file:...}}`
+
+#### `@gates-effect/skills` — Task system
+- `makeTaskQueue()` — fila in-memory com status pending/in_progress/completed/failed
+- `makeFileTaskQueue(name)` — fila persistida em `.gates/tasks/<name>.json`
+- `makeTaskRunner(queue, skills, executorConfig)` — executa tasks em paralelo com dependências
+- Wave loop: runs ready tasks → aguarda → verifica novas desbloqueadas → repete
+- `TaskRunnerOptions.concurrency` — `number | "unbounded"` (default: 4)
+- Callbacks `onTaskStart`, `onTaskComplete`, `onTaskFail`
+
+#### `@gates-effect/skills` — Connector system
+- `loadConnectors(basePath, credentials)` — descobre connectors em `.gates/connectors/`
+- `loadConnector(dirPath, credentials)` — carrega um connector individualmente
+- `connector.yaml` declarativo: `commands`, `skills`, `docs`, `requiredCredentials`
+- `{{credentials.KEY}}` — injeção segura de credenciais nos envs dos comandos
+- `ConnectorRegistry.allTools()`, `.allSkills()`, `.allDocs()`
+- Connector `git` de exemplo com allowlist de subcomandos
+
+#### `@gates-effect/runtime` — Compaction por escopo
+- `CompactionScope` — `maxContextTokens`, `thresholdPercent`, `keepRecentMessages`
+- `Role.compaction` — compactação por padrão para todos os prompts da role
+- `PromptOptions.compaction` — override por chamada individual; `false` desabilita
+- Fallback silencioso se a sumarização falhar (histórico original mantido)
+
+#### `@gates-effect/runtime` — `defineCommand`
+- `defineCommand(config)` — cria `Tool` que roda executável externo com env isolado
+- `allowedSubcommands` — allowlist de subcomandos; tentativa bloqueada → `toolError`
+- `baseArgs` — argumentos sempre prefixados antes dos do LLM
+- Sem shell intermediário (`spawn` com args array); sem vazamento de `process.env`
+
+#### `@gates-effect/sandbox` — Isolamento de credenciais
+- `SandboxConfig.credentials` — secrets explicitamente concedidos ao sandbox
+- `SandboxConfig.isolated` — quando `true`, passa só `PATH`/`HOME` + `env` + `credentials`
+- Protege contra vazamento de credenciais entre agentes
+
+#### `@gates-effect/providers` — Tool calling completo
+- Anthropic: `input_schema`, `tool_use` content blocks, `tool_result` em user messages
+- OpenAI: `{ type: "function", function: {...} }`, tool results como `role: "tool"` messages
+- MiniMax: já existia; todos os 3 providers agora têm tool calling via `provider.chat(messages, tools?)`
+
+#### Migração Effect v4
+- `effect@4.0.0-beta.64` em todos os pacotes; `@effect/schema` removido
+- `Effect.gen(this, fn)` → `const stateRef/self = this; Effect.gen(fn)` nos class methods
+- Renomes: `either→result`, `catchAll→catch_`, `fork→forkChild`, `try→try_`
+- Tags `Left/Right → Failure/Success`, props `.left/.right → .failure/.success`
+- `Schema` bundled no `effect` principal (sem `@effect/schema` separado)
+
+#### Correções de bugs críticos
+- Mensagem do usuário duplicada no contexto enviado ao LLM
+- `PubSub.publish` nunca executado (envolto em `Effect.sync`)
+- `firstKeptEntryId` de compactação apontando para início do histórico
+- `byBudget` calculado e descartado no trigger de compactação
+- `getTotalTokens` retornava `entries.length * 150` independente do conteúdo
+- `toData` sobrescrevia `createdAt` em cada save
+- `formatPermissions` com bits Unix completamente errados
+
+#### Correções de segurança
+- Injeção de shell em `makeGlobTool` e `makeGrepTool` → `spawn` com array de args
+- `new Function()` em `evaluateGuard`/`evaluateWhen` → comparações diretas
+- Path traversal em `makeLocalSandbox` → `assertWithinCwd` com `path.resolve`
