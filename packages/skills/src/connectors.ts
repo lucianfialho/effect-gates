@@ -2,8 +2,8 @@ import { Effect } from "effect";
 import * as fs from "fs";
 import * as path from "path";
 import yaml from "js-yaml";
-import { defineCommand } from "@gates-effect/runtime";
-import type { Tool } from "@gates-effect/runtime";
+import { defineCommand } from "@gates/runtime";
+import type { Tool } from "@gates/runtime";
 import type { SkillConfig } from "./types.js";
 import { parseSkillYamlContent } from "./discovery.js";
 

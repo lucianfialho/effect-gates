@@ -5,7 +5,7 @@
 Build composable, type-safe AI agents that call tools, run pipelines, and persist state — powered by [Effect v4](https://effect.website/).
 
 ```bash
-pnpm add @gates-effect/runtime @gates-effect/providers
+pnpm add @gates/runtime @gates/providers
 ```
 
 ---
@@ -52,13 +52,13 @@ Built on Effect v4 for end-to-end type safety and composability.
 
 | Package | Description |
 |---|---|
-| [`@gates-effect/runtime`](packages/runtime) | Agent, Harness, SessionHistory, Compaction, Events |
-| [`@gates-effect/providers`](packages/providers) | Anthropic, MiniMax, OpenAI — with tool calling |
-| [`@gates-effect/skills`](packages/skills) | YAML state machines, Tasks, Connectors, Interpolation |
-| [`@gates-effect/sandbox`](packages/sandbox) | Local execution with path traversal and credential isolation |
-| [`@gates-effect/gates`](packages/gates) | Atomic primitives: bash safety, dedup, file metadata |
-| [`@gates-effect/harness-ui`](packages/harness-ui) | Terminal UI — chat, sidebar, skill visualization |
-| [`@gates-effect/cli`](packages/cli) | CLI: `gates run`, `chat`, `resume`, `dev`, `skill` |
+| [`@gates/runtime`](packages/runtime) | Agent, Harness, SessionHistory, Compaction, Events |
+| [`@gates/providers`](packages/providers) | Anthropic, MiniMax, OpenAI — with tool calling |
+| [`@gates/skills`](packages/skills) | YAML state machines, Tasks, Connectors, Interpolation |
+| [`@gates/sandbox`](packages/sandbox) | Local execution with path traversal and credential isolation |
+| [`@gates/core`](packages/gates) | Atomic primitives: bash safety, dedup, file metadata |
+| [`@gates/harness-ui`](packages/harness-ui) | Terminal UI — chat, sidebar, skill visualization |
+| [`@gates/cli`](packages/cli) | CLI: `gates run`, `chat`, `resume`, `dev`, `skill` |
 
 ---
 
@@ -67,8 +67,8 @@ Built on Effect v4 for end-to-end type safety and composability.
 ### Chat agent
 
 ```typescript
-import { makeAgent } from "@gates-effect/runtime";
-import { makeMiniMaxProvider } from "@gates-effect/providers";
+import { makeAgent } from "@gates/runtime";
+import { makeMiniMaxProvider } from "@gates/providers";
 import { Effect } from "effect";
 
 const program = Effect.gen(function* () {
@@ -87,8 +87,8 @@ Effect.runPromise(program);
 ### Harness with roles and tools
 
 ```typescript
-import { createHarness, role, toolsMap } from "@gates-effect/runtime";
-import { makeLocalSandbox } from "@gates-effect/sandbox";
+import { createHarness, role, toolsMap } from "@gates/runtime";
+import { makeLocalSandbox } from "@gates/sandbox";
 
 const sandbox = yield* makeLocalSandbox({ cwd: process.cwd() });
 
@@ -163,7 +163,7 @@ const registry = yield* loadConnectors(".gates/connectors", {
 ## Terminal UI
 
 ```bash
-pnpm add @gates-effect/harness-ui
+pnpm add @gates/harness-ui
 harness-ui --dir /your/project
 ```
 
@@ -249,30 +249,30 @@ Monorepo with pnpm workspaces. Each package is independently typechecked.
 - `AnthropicConfig.thinking: { enabled, budgetTokens? }` — extended thinking via Claude 3.7+ (streams `reasoningDetails` in `ChatResponse`)
 - `OpenAIConfig.reasoningEffort: "low" | "medium" | "high"` — native support for o1/o3 models (disables temperature/max_tokens automatically)
 
-**Patch engine** (`@gates-effect/runtime`)
+**Patch engine** (`@gates/runtime`)
 - `applyPatch(content, patch)` — applies unified diffs with ±10 line fuzzy offset matching
 - `makePatchTool(sandbox)` — agent tool for complex multi-location code edits
 
-**Script safety** (`@gates-effect/gates`)
+**Script safety** (`@gates/core`)
 - `checkScript(script, config)` — validates LLM-generated JS/TS before execution
 - Blocks: `eval()`, `new Function()`, `process.exit()`, `child_process` imports, template literal injection
 - `preprocessScript(script)` — check pipeline; `sanitizeTemplateLiterals(script)` — escapes backtick issues
 
-**Semantic search** (`@gates-effect/gates`)
+**Semantic search** (`@gates/core`)
 - `buildIndex(rootPath, openAiApiKey)` — chunks codebase by function/class boundaries + generates OpenAI embeddings
 - `searchIndex(index, query, apiKey, { topK })` — cosine similarity search with natural language queries
 - `formatResults(results)` — formats results as Markdown code blocks for LLM context injection
 - Indexes `.ts`, `.tsx`, `.js`, `.mjs`, `.py`, `.go`, `.rs`, `.md` files
 
 **Meeting → Issues pipeline**
-- `@gates-effect/harness-ui` sidebar — split layout (36 cols) with `Ctrl+S` toggle, auto-opens on skill completion
+- `@gates/harness-ui` sidebar — split layout (36 cols) with `Ctrl+S` toggle, auto-opens on skill completion
 - `sidebar_update` SSE event for real-time sidebar population from server or skills
 - Google Workspace connector (`.gates/connectors/google-workspace/`) via `gws` CLI — `gws_calendar`, `gws_meet`, `gws_drive`
 - GitHub connector (`.gates/connectors/github/`) via `gh` CLI
 - Skills: `list-meetings`, `extract-action-items`, `create-github-issues`
 - Harness `meeting-issues` — transcript → structured action items → GitHub Issues (no code execution)
 
-**Sessions list** (`@gates-effect/harness-ui`)
+**Sessions list** (`@gates/harness-ui`)
 - `GET /api/sessions` — lists persisted sessions from FileSessionStore with preview + relative timestamps
 - `POST /api/sessions { resumeSessionId }` — resume any previous session
 - `DELETE /api/sessions/:id` — delete session
@@ -291,28 +291,28 @@ Monorepo with pnpm workspaces. Each package is independently typechecked.
 
 ### [0.1.0] — 2026-05-09
 
-#### `@gates-effect/harness-ui`
+#### `@gates/harness-ui`
 - Terminal UI with sessions list, skill visualization, tool calling display, SSE streaming
 - Skills in chat: `/skill <name>`, `/skills`, `/sessions`, `/clear`
 - Server: Hono HTTP + SSE on localhost:3583
 
-#### `@gates-effect/skills`
+#### `@gates/skills`
 - `{{file:path}}` file injection and `{% if/else/endif %}` conditionals in prompts
 - `onEvent` callback in `SkillExecutorConfig` for real-time streaming
 - `makeTaskQueue`, `makeFileTaskQueue`, `makeTaskRunner` — parallel task execution with dependency graph
 - Connector system: `loadConnectors`, `connector.yaml`, `{{credentials.KEY}}` injection
 - `SkillExecutorConfig.basePath` for `{{file:...}}` resolution
 
-#### `@gates-effect/runtime`
+#### `@gates/runtime`
 - `CompactionScope` — compaction per role and per call (`PromptOptions.compaction`)
 - `defineCommand` — wrap any CLI as an isolated tool with subcommand allowlist
 - `createHarness` session history between prompts (was stateless)
 - `AgentLoopConfig.toolConcurrency: "sequential" | "unbounded" | number`
 
-#### `@gates-effect/sandbox`
+#### `@gates/sandbox`
 - `SandboxConfig.isolated` + `credentials` — blocks `process.env` passthrough per agent
 
-#### `@gates-effect/providers`
+#### `@gates/providers`
 - Tool calling on Anthropic (content blocks), OpenAI (role: tool messages), MiniMax
 - All three providers with unified `provider.chat(messages, tools?)` interface
 

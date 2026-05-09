@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { getProviderConfig, type ProviderType } from "../providers/index.js";
-import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates-effect/providers";
-import type { Provider, Message as ProviderMessage, ToolCall as ProviderToolCall, ToolResult as ProviderToolResult } from "@gates-effect/providers";
-import { makeSandbox } from "@gates-effect/sandbox";
-import { toolsMap, type Tool, type Message } from "@gates-effect/runtime";
+import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates/providers";
+import type { Provider, Message as ProviderMessage, ToolCall as ProviderToolCall, ToolResult as ProviderToolResult } from "@gates/providers";
+import { makeSandbox } from "@gates/sandbox";
+import { toolsMap, type Tool, type Message } from "@gates/runtime";
 
 interface RunOptions {
   provider: ProviderType;

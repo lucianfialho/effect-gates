@@ -1,7 +1,7 @@
 import { Effect } from "effect";
-import { loadSkillFromDirectory, createSkillExecutorWithSandbox } from "@gates-effect/skills";
-import type { DiscoveredSkill, SkillContext } from "@gates-effect/skills";
-import { makeSandbox } from "@gates-effect/sandbox";
+import { loadSkillFromDirectory, createSkillExecutorWithSandbox } from "@gates/skills";
+import type { DiscoveredSkill, SkillContext } from "@gates/skills";
+import { makeSandbox } from "@gates/sandbox";
 
 interface RunSkillOptions {
   skillPath: string;

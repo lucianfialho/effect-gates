@@ -1,5 +1,5 @@
 {
-  "name": "@gates-effect/runtime",
+  "name": "@gates/runtime",
   "version": "0.1.0",
   "type": "module",
   "types": "./dist/index.d.ts",
@@ -14,11 +14,18 @@
   },
   "dependencies": {
     "effect": "4.0.0-beta.64",
-    "@gates-effect/sandbox": "workspace:*",
-    "@gates-effect/providers": "workspace:*"
+    "@gates/sandbox": "workspace:*",
+    "@gates/providers": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.4.0"
-  }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js"
 }

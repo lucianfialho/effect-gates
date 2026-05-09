@@ -1,5 +1,5 @@
 {
-  "name": "@gates-effect/harness-ui",
+  "name": "@gates/harness-ui",
   "version": "0.1.0",
   "description": "Terminal UI for gates-effect harnesses",
   "type": "module",
@@ -11,10 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@gates-effect/providers": "workspace:*",
-    "@gates-effect/runtime": "workspace:*",
-    "@gates-effect/sandbox": "workspace:*",
-    "@gates-effect/skills": "workspace:*",
+    "@gates/providers": "workspace:*",
+    "@gates/runtime": "workspace:*",
+    "@gates/sandbox": "workspace:*",
+    "@gates/skills": "workspace:*",
     "effect": "4.0.0-beta.64",
     "hono": "^4.0.0",
     "@hono/node-server": "^1.12.0",

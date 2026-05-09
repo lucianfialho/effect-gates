@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import type { Tool } from "./tools.js";
 import { toolResult, toolError } from "./tools.js";
-import type { Sandbox } from "@gates-effect/sandbox";
+import type { Sandbox } from "@gates/sandbox";
 
 export interface PatchResult {
   readonly applied: number;

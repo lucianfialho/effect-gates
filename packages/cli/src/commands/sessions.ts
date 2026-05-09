@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { listSessions, makeFileSessionStore } from "@gates-effect/runtime";
+import { listSessions, makeFileSessionStore } from "@gates/runtime";
 
 interface SessionsOptions {
   all?: boolean;

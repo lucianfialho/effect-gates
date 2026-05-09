@@ -46,9 +46,9 @@ Always explain your reasoning.`,
 ## 2. Use it programmatically
 
 ```typescript
-import { createHarness, role, toolsMap } from "@gates-effect/runtime";
-import { makeLocalSandbox } from "@gates-effect/sandbox";
-import { makeAnthropicProvider } from "@gates-effect/providers";
+import { createHarness, role, toolsMap } from "@gates/runtime";
+import { makeLocalSandbox } from "@gates/sandbox";
+import { makeAnthropicProvider } from "@gates/providers";
 
 const sandbox = yield* makeLocalSandbox({ cwd: process.cwd() });
 const provider = makeAnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! });
@@ -76,7 +76,7 @@ const r2 = yield* session.prompt("What about the token expiry logic?");
 ## 3. Add connectors
 
 ```typescript
-import { loadConnectors } from "@gates-effect/skills";
+import { loadConnectors } from "@gates/skills";
 
 const registry = yield* loadConnectors(".gates/connectors", {
   GH_TOKEN: process.env.GH_TOKEN!,

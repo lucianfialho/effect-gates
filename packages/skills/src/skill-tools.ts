@@ -1,8 +1,8 @@
 import { Effect } from "effect";
 import type { SkillExecutorConfig, SkillContext, SkillConfig, SkillExecutor } from "./types.js";
-import type { Sandbox } from "@gates-effect/sandbox";
-import type { Tool } from "@gates-effect/runtime";
-import { toolsMap } from "@gates-effect/runtime";
+import type { Sandbox } from "@gates/sandbox";
+import type { Tool } from "@gates/runtime";
+import { toolsMap } from "@gates/runtime";
 
 export const createSandboxToolExecutor = (sandbox: Sandbox): SkillExecutorConfig => {
   const tools = toolsMap(sandbox);

@@ -21,7 +21,7 @@ import {
 import type {
   ChatResponse,
   ProviderError,
-} from "@gates-effect/providers";
+} from "@gates/providers";
 
 export type { ChatResponse, ProviderError };
 

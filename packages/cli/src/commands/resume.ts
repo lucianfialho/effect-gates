@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { getProviderConfig, type ProviderType } from "../providers/index.js";
-import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates-effect/providers";
-import type { Provider, Message as ProviderMessage } from "@gates-effect/providers";
-import { makeFileSessionStore, SessionHistory } from "@gates-effect/runtime";
-import type { Message } from "@gates-effect/runtime";
+import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates/providers";
+import type { Provider, Message as ProviderMessage } from "@gates/providers";
+import { makeFileSessionStore, SessionHistory } from "@gates/runtime";
+import type { Message } from "@gates/runtime";
 
 interface ResumeOptions {
   provider: ProviderType;

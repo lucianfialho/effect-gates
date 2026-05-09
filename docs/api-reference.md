@@ -2,7 +2,7 @@
 
 Full API documentation for all packages.
 
-## @gates-effect/runtime
+## @gates/runtime
 
 ### makeAgent
 
@@ -94,7 +94,7 @@ const data = yield* history.toData({ sessionId });
 
 ---
 
-## @gates-effect/providers
+## @gates/providers
 
 All providers share the same interface:
 
@@ -103,7 +103,7 @@ provider.chat(messages: Message[], tools?: Tool[]): Effect.Effect<ChatResponse, 
 ```
 
 ```typescript
-import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates-effect/providers";
+import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates/providers";
 
 const provider = makeAnthropicProvider({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -114,7 +114,7 @@ const provider = makeAnthropicProvider({
 
 ---
 
-## @gates-effect/sandbox
+## @gates/sandbox
 
 ```typescript
 const sandbox = yield* makeLocalSandbox({
@@ -132,7 +132,7 @@ const files = yield* sandbox.listDir("src/");
 
 ---
 
-## @gates-effect/skills
+## @gates/skills
 
 ### makeSkillExecutor
 
@@ -174,10 +174,10 @@ const results = yield* runner.runAll({ concurrency: 3, onTaskComplete: (t) => co
 
 ---
 
-## @gates-effect/gates
+## @gates/core
 
 ```typescript
-import { bashSafety, runBash, readLarge, dedupLines, dedupSimilar, getFileMetadata } from "@gates-effect/gates";
+import { bashSafety, runBash, readLarge, dedupLines, dedupSimilar, getFileMetadata } from "@gates/core";
 
 yield* bashSafety()("git status");              // validates before executing
 const result = yield* runBash("git log -5");

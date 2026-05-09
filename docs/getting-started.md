@@ -9,14 +9,14 @@ cd effect-gates
 pnpm install && pnpm build
 
 # Individual packages (production)
-pnpm add @gates-effect/runtime @gates-effect/providers @gates-effect/sandbox
+pnpm add @gates/runtime @gates/providers @gates/sandbox
 ```
 
 ## Your first agent
 
 ```typescript
-import { makeAgent } from "@gates-effect/runtime";
-import { makeMiniMaxProvider } from "@gates-effect/providers";
+import { makeAgent } from "@gates/runtime";
+import { makeMiniMaxProvider } from "@gates/providers";
 import { Effect } from "effect";
 
 const program = Effect.gen(function* () {

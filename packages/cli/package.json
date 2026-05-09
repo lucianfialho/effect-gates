@@ -1,5 +1,5 @@
 {
-  "name": "@gates-effect/cli",
+  "name": "@gates/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -12,10 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@gates-effect/providers": "workspace:*",
-    "@gates-effect/runtime": "workspace:*",
-    "@gates-effect/sandbox": "workspace:*",
-    "@gates-effect/skills": "workspace:*",
+    "@gates/providers": "workspace:*",
+    "@gates/runtime": "workspace:*",
+    "@gates/sandbox": "workspace:*",
+    "@gates/skills": "workspace:*",
     "effect": "4.0.0-beta.64",
     "commander": "^12.0.0"
   },

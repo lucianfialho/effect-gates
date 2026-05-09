@@ -1,5 +1,5 @@
 {
-  "name": "@gates-effect/sandbox",
+  "name": "@gates/sandbox",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,5 +18,11 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0",
     "vitest": "^1.6.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

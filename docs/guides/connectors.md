@@ -43,7 +43,7 @@ docs:
 ## Loading connectors
 
 ```typescript
-import { loadConnectors } from "@gates-effect/skills";
+import { loadConnectors } from "@gates/skills";
 
 const registry = yield* loadConnectors(".gates/connectors", {
   GH_TOKEN: process.env.GH_TOKEN!,
