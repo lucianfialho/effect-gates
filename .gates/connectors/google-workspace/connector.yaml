@@ -32,3 +32,4 @@ commands:
 
 docs:
   - docs/setup.md
+  - docs/gws-guide.md

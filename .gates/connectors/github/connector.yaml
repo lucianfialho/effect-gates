@@ -16,3 +16,6 @@ commands:
       - api
     env:
       GH_TOKEN: "{{credentials.GH_TOKEN}}"
+
+docs:
+  - docs/github-guide.md
