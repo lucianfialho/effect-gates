@@ -99,3 +99,6 @@ export type { LoadedMethodology } from "./methodology.js";
 
 export { loadConnector, loadConnectors } from "./connectors.js";
 export type { Connector, ConnectorRegistry } from "./connectors.js";
+
+export { makeTaskQueue, makeFileTaskQueue, makeTaskRunner } from "./tasks.js";
+export type { Task, TaskStatus, TaskError, TaskStats, TaskQueue, TaskRunner, TaskRunnerOptions } from "./tasks.js";
