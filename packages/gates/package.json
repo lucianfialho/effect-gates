@@ -1,5 +1,5 @@
 {
-  "name": "@gates/core",
+  "name": "@gatesai/core",
   "version": "0.1.0",
   "type": "module",
   "types": "./dist/index.d.ts",

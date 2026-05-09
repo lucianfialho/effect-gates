@@ -1,10 +1,10 @@
 import { Effect, Ref } from "effect";
 import * as readline from "readline";
 import { getProviderConfig, type ProviderType } from "../providers/index.js";
-import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates/providers";
-import type { Provider, Message as ProviderMessage } from "@gates/providers";
-import { makeFileSessionStore, SessionHistory } from "@gates/runtime";
-import type { Message } from "@gates/runtime";
+import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gatesai/providers";
+import type { Provider, Message as ProviderMessage } from "@gatesai/providers";
+import { makeFileSessionStore, SessionHistory } from "@gatesai/runtime";
+import type { Message } from "@gatesai/runtime";
 
 interface ChatOptions {
   session?: string;

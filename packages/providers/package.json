@@ -1,5 +1,5 @@
 {
-  "name": "@gates/providers",
+  "name": "@gatesai/providers",
   "version": "0.1.0",
   "type": "module",
   "types": "./dist/index.d.ts",

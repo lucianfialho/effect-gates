@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { getProviderConfig, type ProviderType } from "../providers/index.js";
-import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gates/providers";
-import type { Provider, Message as ProviderMessage, ToolCall as ProviderToolCall, ToolResult as ProviderToolResult } from "@gates/providers";
-import { makeSandbox } from "@gates/sandbox";
-import { toolsMap, type Tool, type Message } from "@gates/runtime";
+import { makeMiniMaxProvider, makeAnthropicProvider, makeOpenAIProvider } from "@gatesai/providers";
+import type { Provider, Message as ProviderMessage, ToolCall as ProviderToolCall, ToolResult as ProviderToolResult } from "@gatesai/providers";
+import { makeSandbox } from "@gatesai/sandbox";
+import { toolsMap, type Tool, type Message } from "@gatesai/runtime";
 
 interface RunOptions {
   provider: ProviderType;

@@ -1,5 +1,5 @@
 {
-  "name": "@gates/runtime",
+  "name": "@gatesai/runtime",
   "version": "0.1.0",
   "type": "module",
   "types": "./dist/index.d.ts",
@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "effect": "4.0.0-beta.64",
-    "@gates/sandbox": "workspace:*",
-    "@gates/providers": "workspace:*"
+    "@gatesai/sandbox": "workspace:*",
+    "@gatesai/providers": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

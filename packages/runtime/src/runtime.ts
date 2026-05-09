@@ -21,7 +21,7 @@ import {
 import type {
   ChatResponse,
   ProviderError,
-} from "@gates/providers";
+} from "@gatesai/providers";
 
 export type { ChatResponse, ProviderError };
 

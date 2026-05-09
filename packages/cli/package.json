@@ -1,5 +1,5 @@
 {
-  "name": "@gates/cli",
+  "name": "@gatesai/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -12,10 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@gates/providers": "workspace:*",
-    "@gates/runtime": "workspace:*",
-    "@gates/sandbox": "workspace:*",
-    "@gates/skills": "workspace:*",
+    "@gatesai/providers": "workspace:*",
+    "@gatesai/runtime": "workspace:*",
+    "@gatesai/sandbox": "workspace:*",
+    "@gatesai/skills": "workspace:*",
     "effect": "4.0.0-beta.64",
     "commander": "^12.0.0"
   },

@@ -138,7 +138,7 @@ const ctx = yield* executor.execute({ target: "src/auth.ts" });
 ## Discovery
 
 ```typescript
-import { discoverSkills, loadSkillFromDirectory } from "@gates/skills";
+import { discoverSkills, loadSkillFromDirectory } from "@gatesai/skills";
 
 // Discover all skills in .gates/skills/
 const skills = yield* discoverSkills(".gates/skills", { recursive: true });

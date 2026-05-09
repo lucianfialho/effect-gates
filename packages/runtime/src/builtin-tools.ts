@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import type { Tool } from "./tools.js";
 import { toolResult, toolError } from "./tools.js";
-import type { Sandbox } from "@gates/sandbox";
+import type { Sandbox } from "@gatesai/sandbox";
 
 const spawnAsync = (cmd: string, args: string[], cwd?: string): Effect.Effect<string, Error> =>
   Effect.tryPromise({

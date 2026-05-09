@@ -1,5 +1,5 @@
 {
-  "name": "@gates/skills",
+  "name": "@gatesai/skills",
   "version": "0.1.0",
   "type": "module",
   "types": "./dist/index.d.ts",
@@ -14,9 +14,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@gates/core": "workspace:*",
-    "@gates/runtime": "workspace:*",
-    "@gates/sandbox": "workspace:*",
+    "@gatesai/core": "workspace:*",
+    "@gatesai/runtime": "workspace:*",
+    "@gatesai/sandbox": "workspace:*",
     "effect": "4.0.0-beta.64",
     "js-yaml": "^4.1.1"
   },
