@@ -6,13 +6,14 @@ Framework para construção de harnesses de agentes de IA usando [Effect](https:
 
 ```
 packages/
-  gates/      Primitivas atômicas (bash safety, leitura de arquivos, dedup)
-  providers/  Integrações com LLMs (MiniMax, Anthropic, OpenAI)
-  sandbox/    Execução segura de comandos e arquivos
-  runtime/    Agente, sessões, compactação de contexto, harness, eventos
-  skills/     Máquina de estados para skills (YAML ou programático)
-  wiki/       Base de conhecimento em Markdown com busca
-  cli/        Comandos gates run / chat / resume / dev / skill
+  gates/       Primitivas atômicas (bash safety, leitura de arquivos, dedup)
+  providers/   Integrações com LLMs (MiniMax, Anthropic, OpenAI)
+  sandbox/     Execução segura de comandos e arquivos
+  runtime/     Agente, sessões, compactação de contexto, harness, eventos
+  skills/      Máquina de estados para skills (YAML ou programático)
+  wiki/        Base de conhecimento em Markdown com busca
+  cli/         Comandos gates run / chat / resume / dev / skill
+  harness-ui/  Terminal UI — chat + visualização de skills + servidor HTTP
 ```
 
 ---
@@ -877,6 +878,131 @@ yield* saveEntry({
 // Busca por texto em título, conteúdo e tags
 const resultados = yield* searchWiki("effect", ".");
 ```
+
+---
+
+## `@gates-effect/harness-ui`
+
+Terminal UI para harnesses gates-effect. Inspirado no [OpenCode](https://github.com/anomalyco/opencode/), mas construído em cima do runtime nativo — usa providers, skills, sandbox e sessões reais do framework.
+
+### Arquitetura
+
+```
+harness-ui start
+    │
+    ├── Hono HTTP server (localhost:3583)
+    │     GET  /api/harnesses              lista harnesses descobertos
+    │     GET  /api/skills                 lista skills de .gates/skills/
+    │     POST /api/sessions               cria sessão
+    │     POST /api/sessions/:id/chat      chat com tool calling (SSE)
+    │     POST /api/sessions/:id/skill     executa skill com eventos em tempo real (SSE)
+    │     GET  /api/sessions/:id/history   histórico da sessão
+    │
+    └── Ink TUI (React para terminal)
+          HarnessSelect  seleção com ↑↓↵
+          Chat           chat + tool calling + /skill + /skills
+          SkillsList     navegar e lançar skills
+          SkillExecution visualização em tempo real da state machine
+```
+
+### Uso
+
+```bash
+# Instalar
+pnpm add -g @gates-effect/harness-ui
+
+# Iniciar (descobre .gates/harnesses/ no diretório atual)
+harness-ui
+
+# Especificar diretório
+harness-ui --dir /meu/projeto
+
+# Só o servidor HTTP (sem TUI — útil para integrar outros clientes)
+harness-ui --server-only
+
+# Listar harnesses sem abrir TUI
+harness-ui list
+```
+
+### Criando um harness
+
+Crie `.gates/harnesses/<nome>/harness.js`:
+
+```js
+export default {
+  name: "Code Reviewer",
+  description: "Revisa código com foco em segurança e clareza",
+
+  provider: {
+    type: "anthropic",          // "anthropic" | "minimax" | "openai"
+    model: "claude-sonnet-4-6",
+    // apiKey: "sk-...",        // opcional, usa variável de ambiente por padrão
+  },
+
+  systemPrompt: `Você é um revisor de código sênior.
+Foque em: segurança, performance e legibilidade.`,
+
+  tools: ["read", "grep", "glob"],  // ferramentas disponíveis para o agente
+
+  roles: [
+    { name: "reviewer",  systemPrompt: "Seja rigoroso. Aponte todos os problemas." },
+    { name: "mentor",    systemPrompt: "Seja didático. Explique o porquê de cada sugestão." },
+  ],
+  defaultRole: "reviewer",
+
+  compaction: {
+    maxContextTokens: 12000,
+    thresholdPercent: 80,
+    keepRecentMessages: 6,
+  },
+};
+```
+
+### Comandos no chat
+
+| Comando | Ação |
+|---|---|
+| `/skill <nome>` | Executa um skill YAML com visualização em tempo real |
+| `/skill <nome> key=value` | Executa skill com inputs inline |
+| `/skills` | Abre a tela de seleção de skills |
+| `/clear` | Limpa o histórico da conversa |
+| Esc | Volta para seleção de harness |
+
+### Visualização de skill em tempo real
+
+Quando você executa `/skill refactor target=src/foo.ts`, a TUI mostra a progressão da state machine enquanto acontece:
+
+```
+◆ skill: refactor  (3 states)
+
+  ✓ read      src/foo.ts (247 lines)
+  ✓ analyze   analyzing code → 3 issues found
+  ⟳ write     writing changes...
+```
+
+Os eventos `state_enter`, `tool_call`, `tool_result`, `state_exit` e `transition` chegam via SSE do servidor em tempo real.
+
+### Keyboard shortcuts
+
+| Tecla | Ação |
+|---|---|
+| `↑` `↓` | Navegar listas |
+| `↵` | Selecionar |
+| `Esc` / `Ctrl+B` | Voltar / cancelar |
+| `q` | Sair (tela de seleção) |
+| `Ctrl+C` | Forçar saída |
+
+### API keys
+
+Lidas de variáveis de ambiente:
+
+| Provider | Variável |
+|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| MiniMax | `MINIMAX_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+
+Ou defina `apiKey` diretamente no harness config.
 
 ---
 
