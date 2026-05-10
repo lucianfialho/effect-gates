@@ -18,6 +18,8 @@ const createProvider = (providerName: ProviderType, apiKey: string, model?: stri
       return makeAnthropicProvider({ apiKey, model });
     case "openai":
       return makeOpenAIProvider({ apiKey, model });
+    default:
+      throw new Error("Unknown provider: " + providerName);
   }
 };
 
@@ -90,5 +92,8 @@ const doResume = (sessionId: string, prompt: string, options: ResumeOptions): Ef
   });
 
 export const resume = (sessionId: string, prompt: string, options: ResumeOptions): void => {
-  Effect.runPromise(doResume(sessionId, prompt, options));
+  Effect.runPromise(doResume(sessionId, prompt, options)).catch((err) => {
+    console.error("[error]", err);
+    process.exit(1);
+  });
 };

@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import * as path from "path";
 import { loadSkillFromDirectory, createSkillExecutorWithSandbox } from "@gatesai/skills";
 import type { DiscoveredSkill, SkillContext } from "@gatesai/skills";
 import { makeSandbox } from "@gatesai/sandbox";
@@ -123,6 +124,10 @@ export const parseSkillInput = (inputStr: string): Record<string, unknown> => {
 };
 
 export const findSkillPath = (skillName: string, basePath?: string): string => {
-  const base = basePath ?? process.cwd();
-  return `${base}/.gates/skills/${skillName}`;
+  const base = path.resolve(basePath ?? process.cwd());
+  const resolved = path.resolve(path.join(base, ".gates", "skills", skillName));
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+    throw new Error(`Invalid skill name: "${skillName}" escapes the base directory.`);
+  }
+  return resolved;
 };

@@ -44,9 +44,9 @@ const readConfig = (): Config => {
 
 const writeConfig = (config: Config): void => {
   if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
   }
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
 };
 
 const promptApiKey = (provider: string): Promise<string> => {
@@ -66,6 +66,10 @@ const promptApiKey = (provider: string): Promise<string> => {
 export const login = async (options: LoginOptions): Promise<void> => {
   const provider = options.provider ?? "minimax";
   const modelInfo = PROVIDER_MODELS[provider] ?? { default: "gpt-4o", options: ["gpt-4o"] };
+
+  if (options.key) {
+    console.warn("[warning] Passing API keys via CLI flags may expose them in shell history. Consider using environment variables instead.");
+  }
 
   let apiKey = options.key ?? process.env[`${provider.toUpperCase()}_API_KEY`];
 

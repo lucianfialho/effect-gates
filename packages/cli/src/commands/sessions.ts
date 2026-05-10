@@ -35,5 +35,8 @@ const doSessions = (options: SessionsOptions): Effect.Effect<void> =>
   });
 
 export const sessions = (options: SessionsOptions): void => {
-  Effect.runPromise(doSessions(options));
+  Effect.runPromise(doSessions(options)).catch((err) => {
+    console.error("[error]", err);
+    process.exit(1);
+  });
 };
