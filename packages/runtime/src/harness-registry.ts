@@ -7,9 +7,11 @@ import {
   type HarnessConfig,
   type HarnessError,
   type HarnessRegistry,
+  type HarnessStreamEvent,
   type Role,
   type SkillDefinition,
 } from "./harness.js";
+import type { Message } from "./session-history.js";
 import type { Tool } from "./tools.js";
 
 // ── Registry config ────────────────────────────────────────────────────────────
@@ -103,7 +105,15 @@ export const createHarnessRegistry = (
       return Array.from(entries.keys());
     },
 
-    run<P>(name: string, payload: P, env: Record<string, string>): Effect.Effect<unknown, HarnessError> {
+    run<P>(
+      name: string,
+      payload: P,
+      env: Record<string, string>,
+      options?: {
+        onEvent?: (event: HarnessStreamEvent) => void;
+        initialHistory?: Message[];
+      }
+    ): Effect.Effect<unknown, HarnessError> {
       return Effect.gen(function* () {
         const def = entries.get(name);
         if (!def) {
@@ -112,7 +122,7 @@ export const createHarnessRegistry = (
             message: `Harness "${name}" not found. Registered: [${Array.from(entries.keys()).join(", ")}]`,
           });
         }
-        return yield* runHarness(def as FunctionalHarnessDef<P, Record<string, string>>, payload, env, harnessConfig, self);
+        return yield* runHarness(def as FunctionalHarnessDef<P, Record<string, string>>, payload, env, harnessConfig, self, options);
       });
     },
   };

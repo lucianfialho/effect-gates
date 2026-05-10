@@ -24,6 +24,10 @@ export interface HarnessContext<P = unknown, E = Record<string, string>> {
   readonly init: (options?: HarnessInitOptions) => Effect.Effect<HarnessSession>;
   /** Spawn a named sub-harness from the registry. Requires a HarnessRegistry. */
   readonly harness: <P2 = unknown>(name: string, payload: P2) => Effect.Effect<unknown, HarnessError>;
+  /** SSE event emitter — passed to session.prompt() automatically when set */
+  readonly onEvent?: (event: HarnessStreamEvent) => void;
+  /** Pre-populated history from persistent store */
+  readonly initialHistory?: Message[];
 }
 
 export interface HarnessInitOptions {
@@ -36,6 +40,8 @@ export interface HarnessInitOptions {
   readonly sandbox?: { run: (cmd: string) => Effect.Effect<string, { code: string; message: string }> };
   /** Pre-populate the session history (e.g. loaded from a persisted store). */
   readonly initialHistory?: Message[];
+  /** Default SSE event emitter for all prompt() calls on this session (overridable per-call). */
+  readonly onEvent?: (event: HarnessStreamEvent) => void;
 }
 
 export interface HarnessSession {
@@ -186,7 +192,15 @@ const applyCompaction = (
 // ── createHarness ──────────────────────────────────────────────────────────────
 
 export interface HarnessRegistry {
-  readonly run: <P>(name: string, payload: P, env: Record<string, string>) => Effect.Effect<unknown, HarnessError>;
+  readonly run: <P>(
+    name: string,
+    payload: P,
+    env: Record<string, string>,
+    options?: {
+      onEvent?: (event: HarnessStreamEvent) => void;
+      initialHistory?: Message[];
+    }
+  ) => Effect.Effect<unknown, HarnessError>;
 }
 
 export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry) => {
@@ -200,6 +214,7 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
     Effect.gen(function* () {
       const role = roles.get(options?.role ?? DEFAULT_ROLE.name) ?? DEFAULT_ROLE;
       const historyRef = yield* Ref.make<Message[]>(options?.initialHistory ?? []);
+      const sessionOnEvent = options?.onEvent;
 
       // Merge config tools + per-session tools
       const sessionTools: Map<string, Tool> = new Map([
@@ -272,7 +287,7 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
               const loopResult = yield* Effect.mapError(
                 runAgentLoop(llmCall, sessionTools, messages, {
                   maxIterations: config.maxToolIterations ?? 10,
-                  onEvent: opts?.onEvent,
+                  onEvent: opts?.onEvent ?? sessionOnEvent,
                 }),
                 (e) => ({ code: "AGENT_LOOP_ERROR", message: e.message }) satisfies HarnessError
               );
@@ -358,7 +373,11 @@ export const runHarness = <P = unknown, E extends Record<string, string> = Recor
   payload: P,
   env: E,
   config: HarnessConfig,
-  registry?: HarnessRegistry
+  registry?: HarnessRegistry,
+  options?: {
+    onEvent?: (event: HarnessStreamEvent) => void;
+    initialHistory?: Message[];
+  }
 ): Effect.Effect<unknown, HarnessError> => {
   const h = createHarness(config, registry);
 
@@ -369,6 +388,8 @@ export const runHarness = <P = unknown, E extends Record<string, string> = Recor
     harness: registry
       ? (name, p) => registry.run(name, p, env)
       : () => Effect.fail({ code: "NO_REGISTRY", message: "No harness registry configured. Wrap your harnesses with createHarnessRegistry()." }),
+    onEvent: options?.onEvent,
+    initialHistory: options?.initialHistory,
   };
 
   return def.fn(ctx);
