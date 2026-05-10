@@ -7,7 +7,7 @@ import { defineHarness, defineCommand } from "@gatesai/runtime";
 export const name = "Code Review";
 export const description = "Investiga codebase e abre GitHub issues com melhorias encontradas";
 
-// ── System prompt do investigador ──────────────────────────────────────────────
+// ── Prompts ───────────────────────────────────────────────────────────────────
 
 const INVESTIGATOR_PROMPT = `You are a senior software engineer doing a systematic code review.
 
@@ -38,6 +38,24 @@ Focus on:
 
 Skip style preferences. Only concrete, actionable improvements.`;
 
+const PARAM_PARSER_PROMPT = `Extract code review parameters from the user's message.
+Respond with ONLY a JSON object — no prose, no markdown fences.
+
+{
+  "path": "<directory to review, or '.' if not specified>",
+  "repo": "<owner/repo — REQUIRED, ask if missing>",
+  "focus": "<focus area or null>",
+  "maxIssues": <number, default 5>,
+  "dryRun": <true if user says 'dry run', 'sem criar', 'sem abrir', default false>
+}
+
+Examples:
+"revisa ./packages/runtime no repo lucianfialho/effect-gates com foco em security"
+→ {"path":"./packages/runtime","repo":"lucianfialho/effect-gates","focus":"security","maxIssues":5,"dryRun":false}
+
+"code review src/ for lucianfialho/gates dry run"
+→ {"path":"src/","repo":"lucianfialho/gates","focus":null,"maxIssues":5,"dryRun":true}`;
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Finding {
@@ -46,6 +64,14 @@ interface Finding {
   severity: "low" | "medium" | "high";
   labels: string[];
   file: string | null;
+}
+
+interface ParsedParams {
+  path: string;
+  repo: string | null;
+  focus: string | null;
+  maxIssues: number;
+  dryRun: boolean;
 }
 
 function parseFindings(content: string): Finding[] {
@@ -62,22 +88,60 @@ function parseFindings(content: string): Finding[] {
   }
 }
 
+function extractJson<T>(content: string): T | null {
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try { return JSON.parse(match[0]) as T; } catch { return null; }
+}
+
+// ── Payload — accepts both TUI message and structured args ────────────────────
+
+type Payload =
+  | { message: string }                                           // from gates TUI
+  | { path?: string; repo: string; focus?: string; maxIssues?: number; dryRun?: boolean }; // programmatic
+
 // ── Harness ───────────────────────────────────────────────────────────────────
 
-export default defineHarness<{
-  path?: string;
-  repo: string;
-  focus?: string;
-  maxIssues?: number;
-  dryRun?: boolean;
-}>(
-  ({ init, payload, env }) =>
+export default defineHarness<Payload>(
+  ({ init, payload, env, onEvent }) =>
     Effect.gen(function* () {
-      const { path = ".", repo, focus, maxIssues = 5, dryRun = false } = payload;
+      // ── Parse params from natural language message (TUI path) ────────────
+      let params: ParsedParams;
 
-      const session = yield* init({ systemPrompt: INVESTIGATOR_PROMPT });
+      if ("message" in payload) {
+        const parser = yield* init({ systemPrompt: PARAM_PARSER_PROMPT });
+        const response = yield* parser.prompt(payload.message);
+        const extracted = extractJson<ParsedParams>(response.content);
 
-      // Build investigation prompt
+        if (!extracted?.repo) {
+          return {
+            message: "Missing repo. Try: 'revisa ./src no repo owner/repo'",
+            usage: "code review <path> no repo <owner/repo> [com foco em <area>] [dry run]",
+          };
+        }
+
+        params = {
+          path: extracted.path ?? ".",
+          repo: extracted.repo,
+          focus: extracted.focus ?? null,
+          maxIssues: extracted.maxIssues ?? 5,
+          dryRun: extracted.dryRun ?? false,
+        };
+      } else {
+        params = {
+          path: payload.path ?? ".",
+          repo: payload.repo,
+          focus: payload.focus ?? null,
+          maxIssues: payload.maxIssues ?? 5,
+          dryRun: payload.dryRun ?? false,
+        };
+      }
+
+      const { path, repo, focus, maxIssues, dryRun } = params;
+
+      // ── Investigate ───────────────────────────────────────────────────────
+      const session = yield* init({ systemPrompt: INVESTIGATOR_PROMPT, onEvent });
+
       const focusClause = focus ? `\n\nFocus particularly on: ${focus}` : "";
       const investigationPrompt = `Investigate the codebase at: ${path}
 
@@ -91,7 +155,7 @@ Output a JSON array of findings (max ${maxIssues} items).`;
 
       if (findings.length === 0) {
         return {
-          message: "No findings parsed from investigation. Raw response saved.",
+          message: "No findings parsed. Raw response:",
           raw: response.content.slice(0, 500),
           issues: [],
         };
@@ -105,7 +169,7 @@ Output a JSON array of findings (max ${maxIssues} items).`;
         };
       }
 
-      // Create GitHub issues for each finding
+      // ── Create GitHub issues ──────────────────────────────────────────────
       const gh = defineCommand({
         name: "gh",
         executable: "gh",
@@ -115,13 +179,12 @@ Output a JSON array of findings (max ${maxIssues} items).`;
 
       const created: Array<{ title: string; url: string; severity: string }> = [];
 
-      for (let i = 0; i < findings.slice(0, maxIssues).length; i++) {
+      for (let i = 0; i < Math.min(findings.length, maxIssues); i++) {
         const finding = findings[i]!;
         const fileNote = finding.file ? `\n\n**File:** \`${finding.file}\`` : "";
         const meta = `\n\n---\n**Severity:** ${finding.severity}  \n**Labels:** ${finding.labels.join(", ") || "none"}`;
         const fullBody = finding.body + fileNote + meta;
 
-        // Write body to temp file — avoids shell quoting issues with multiline text
         const tmpFile = join(tmpdir(), `gh-body-${Date.now()}-${i}.md`);
         yield* Effect.tryPromise({
           try: () => writeFile(tmpFile, fullBody, "utf-8"),
@@ -130,12 +193,9 @@ Output a JSON array of findings (max ${maxIssues} items).`;
 
         const title = finding.title.replace(/"/g, '\\"');
         const result = yield* Effect.result(
-          gh.execute({
-            args: `issue create --repo ${repo} --title "${title}" --body-file "${tmpFile}"`,
-          })
+          gh.execute({ args: `issue create --repo ${repo} --title "${title}" --body-file "${tmpFile}"` })
         );
 
-        // Clean up temp file
         yield* Effect.tryPromise({ try: () => unlink(tmpFile), catch: () => null });
 
         if (result._tag === "Success") {
@@ -144,7 +204,7 @@ Output a JSON array of findings (max ${maxIssues} items).`;
           if (url) {
             created.push({ title: finding.title, url, severity: finding.severity });
           } else {
-            console.error(`[gh] issue create failed: ${out.slice(0, 200)}`);
+            console.error(`[gh] failed: ${out.slice(0, 200)}`);
           }
         }
       }

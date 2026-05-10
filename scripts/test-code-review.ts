@@ -9,7 +9,7 @@ import {
   makeGrepTool,
   makeBashTool,
 } from "@gatesai/runtime";
-import { makeAnthropicProvider } from "@gatesai/providers";
+import { makeAnthropicProvider, withPacing } from "@gatesai/providers";
 import { makeLocalSandbox } from "@gatesai/sandbox";
 import codeReviewHarness from "../.gates/harnesses/code-review/harness.js";
 
@@ -34,7 +34,12 @@ function readApiKey(): string {
 
 const program = Effect.gen(function* () {
   const sandbox = yield* makeLocalSandbox({ cwd: process.cwd() });
-  const provider = makeAnthropicProvider({ apiKey: readApiKey(), model: "claude-sonnet-4-6" });
+
+  // withPacing: max 3 concurrent calls, 500ms min interval, retry 429 up to 5x
+  const provider = withPacing(
+    makeAnthropicProvider({ apiKey: readApiKey(), model: "claude-sonnet-4-6" }),
+    { maxConcurrent: 3, minIntervalMs: 500, maxRetries: 5 }
+  );
 
   const tools = new Map([
     ["read",  makeReadTool(sandbox)],
