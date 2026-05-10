@@ -35,10 +35,9 @@ function readApiKey(): string {
 const program = Effect.gen(function* () {
   const sandbox = yield* makeLocalSandbox({ cwd: process.cwd() });
 
-  // withPacing: max 3 concurrent calls, 500ms min interval, retry 429 up to 5x
   const provider = withPacing(
-    makeAnthropicProvider({ apiKey: readApiKey(), model: "claude-sonnet-4-6" }),
-    { maxConcurrent: 1, minIntervalMs: 2000, maxRetries: 8 }
+    makeAnthropicProvider({ apiKey: readApiKey(), model: "claude-haiku-4-5-20251001" }),
+    { maxConcurrent: 2, minIntervalMs: 1000, maxRetries: 5 }
   );
 
   const tools = new Map([

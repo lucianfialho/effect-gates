@@ -284,10 +284,11 @@ export const makeLocalSandbox = (config?: SandboxConfig): Effect.Effect<Sandbox>
     return Effect.tryPromise({
       try: async () => fs.promises.readFile(resolved, "utf-8"),
       catch: (e) => {
-        const err = e as { code?: string };
-        if (err.code === "ENOENT") return SandboxError.FileNotFound(filePath);
-        if (err.code === "EACCES") return SandboxError.PermissionDenied(filePath);
-        throw e;
+        const err = e as { code?: string; message?: string };
+        if (err.code === "ENOENT")  return SandboxError.FileNotFound(filePath);
+        if (err.code === "EACCES")  return SandboxError.PermissionDenied(filePath);
+        if (err.code === "EISDIR")  return SandboxError.PermissionDenied(`${filePath} is a directory`);
+        return SandboxError.CommandFailed(filePath, err.message ?? String(e));
       },
     });
   };
