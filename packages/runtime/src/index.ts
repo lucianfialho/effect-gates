@@ -55,12 +55,15 @@ export type { PatchResult } from "./patch.js";
 
 export {
   createHarness,
+  defineHarness,
+  runHarness,
   skill,
   role,
   parseResultSchema,
   createSkillResultSchema,
 } from "./harness.js";
 export type {
+  FunctionalHarnessDef,
   HarnessContext,
   HarnessInitOptions,
   HarnessSession,
@@ -72,8 +75,11 @@ export type {
   Role,
   Trigger,
   HarnessConfig,
+  HarnessRegistry,
   SkillDefinition,
 } from "./harness.js";
+
+export { createHarnessRegistry } from "./harness-registry.js";
 
 export {
   makeAgentEvents,
