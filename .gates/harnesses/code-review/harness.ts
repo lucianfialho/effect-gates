@@ -188,6 +188,7 @@ Each item: {"title":"<80 chars>","body":"## Problem\\n...\\n\\n## Why\\n...\\n\\
       // ── Create GitHub issues ──────────────────────────────────────────────
       const gh = defineCommand({
         name: "gh",
+        description: "GitHub CLI for creating issues",
         executable: "gh",
         allowedSubcommands: ["issue"],
         env: { GH_TOKEN: env["GITHUB_TOKEN"] ?? env["GH_TOKEN"] ?? "" },
