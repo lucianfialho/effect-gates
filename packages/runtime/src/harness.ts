@@ -72,8 +72,9 @@ export interface CompactionScope {
 }
 
 export type HarnessStreamEvent =
-  | { type: "tool_call"; id: string; name: string; args: string }
-  | { type: "tool_result"; id: string; name: string; output: string; isError: boolean };
+  | { type: "tool_call";   id: string; name: string; args: string }
+  | { type: "tool_result"; id: string; name: string; output: string; isError: boolean }
+  | { type: "compaction";  tokensBefore: number; tokensAfter: number; messagesBefore: number; messagesAfter: number };
 
 export interface PromptOptions {
   readonly role?: string;
@@ -293,10 +294,24 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
                   }))
                 );
 
+              // Auto-compaction: injected dependency — uses the same provider
+              // Effect.result inside compactMessages means failures degrade
+              // gracefully (truncation) rather than crashing the loop.
+              const autoCompaction: import("./agent-loop.js").LoopCompactionConfig = {
+                thresholdTokens: 30_000,
+                keepRecentMessages: 8,
+                summarize: (msgs: Message[]) =>
+                  config.provider.chat(msgs).pipe(
+                    Effect.map((r) => r.content),
+                    Effect.mapError((e: HarnessError) => new Error(e.message))
+                  ),
+              };
+
               const loopResult = yield* Effect.mapError(
                 runAgentLoop(llmCall, sessionTools, messages, {
                   maxIterations: config.maxToolIterations ?? 10,
                   onEvent: opts?.onEvent ?? sessionOnEvent,
+                  compaction: autoCompaction,
                 }),
                 (e) => ({ code: "AGENT_LOOP_ERROR", message: e.message }) satisfies HarnessError
               );

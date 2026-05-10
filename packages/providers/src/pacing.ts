@@ -20,10 +20,13 @@ const retryOn429 = <A>(
         return yield* Effect.fail(result.failure);
       }
       // Exponential backoff: 2s, 4s, 8s, 16s, 32s + up to 1s jitter
-      const base = Math.min(2000 * Math.pow(2, attempt), 32000);
+      // Respect Retry-After header if present in the error message
+      const retryAfterMatch = result.failure.message.match(/retry-after:\s*(\d+)/i);
+      const retryAfterSec = retryAfterMatch ? parseInt(retryAfterMatch[1]!, 10) : null;
+      const base = retryAfterSec ? retryAfterSec * 1000 : Math.min(3000 * Math.pow(2, attempt), 60000);
       const jitter = Math.random() * 1000;
       const delay = base + jitter;
-      console.warn(`[pacing] rate limited — retry ${attempt + 1}/${maxRetries} in ${(delay / 1000).toFixed(1)}s`);
+      console.warn(`[pacing] rate limited — retry ${attempt + 1}/${maxRetries} in ${(delay / 1000).toFixed(1)}s${retryAfterSec ? ` (server says ${retryAfterSec}s)` : ""}`);
       yield* Effect.sleep(Duration.millis(delay));
     }
     return yield* Effect.fail({ code: "RATE_LIMIT_EXHAUSTED", message: `Rate limit: gave up after ${maxRetries} retries` } as ProviderError);

@@ -172,7 +172,9 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
 
           if (!response.ok) {
             const error = await response.text();
-            throw new Error(`Anthropic API error: ${response.status} - ${error}`);
+            const retryAfter = response.headers.get("retry-after") ?? response.headers.get("x-ratelimit-reset-requests");
+            const hint = retryAfter ? ` (retry-after: ${retryAfter}s)` : "";
+            throw new Error(`Anthropic API error: ${response.status}${hint} - ${error}`);
           }
 
           const data = (await response.json()) as AnthropicResponse;

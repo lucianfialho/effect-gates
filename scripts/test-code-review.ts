@@ -38,7 +38,7 @@ const program = Effect.gen(function* () {
   // withPacing: max 3 concurrent calls, 500ms min interval, retry 429 up to 5x
   const provider = withPacing(
     makeAnthropicProvider({ apiKey: readApiKey(), model: "claude-sonnet-4-6" }),
-    { maxConcurrent: 3, minIntervalMs: 500, maxRetries: 5 }
+    { maxConcurrent: 1, minIntervalMs: 2000, maxRetries: 8 }
   );
 
   const tools = new Map([
