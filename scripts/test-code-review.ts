@@ -9,7 +9,7 @@ import {
   makeGrepTool,
   makeBashTool,
 } from "@gatesai/runtime";
-import { makeAnthropicProvider, withPacing } from "@gatesai/providers";
+import { makeClaudeCodeProvider } from "@gatesai/providers";
 import { makeLocalSandbox } from "@gatesai/sandbox";
 import codeReviewHarness from "../.gates/harnesses/code-review/harness.js";
 
@@ -35,10 +35,13 @@ function readApiKey(): string {
 const program = Effect.gen(function* () {
   const sandbox = yield* makeLocalSandbox({ cwd: process.cwd() });
 
-  const provider = withPacing(
-    makeAnthropicProvider({ apiKey: readApiKey(), model: "claude-haiku-4-5-20251001" }),
-    { maxConcurrent: 2, minIntervalMs: 1000, maxRetries: 5 }
-  );
+  // makeClaudeCodeProvider: spawns `claude -p` using subscription OAuth.
+  // No API rate limits — uses full Pro/Max quota via Claude Code routing.
+  const provider = makeClaudeCodeProvider({
+    model: "claude-sonnet-4-6",
+    allowedTools: ["Bash", "Read", "Glob", "Grep"],
+    cwd: process.cwd(),
+  });
 
   const tools = new Map([
     ["read",  makeReadTool(sandbox)],
