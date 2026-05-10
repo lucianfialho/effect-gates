@@ -1,4 +1,7 @@
 import { Effect } from "effect";
+import { writeFile, unlink } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { defineHarness, defineCommand } from "@gatesai/runtime";
 
 export const name = "Code Review";
@@ -112,26 +115,37 @@ Output a JSON array of findings (max ${maxIssues} items).`;
 
       const created: Array<{ title: string; url: string; severity: string }> = [];
 
-      for (const finding of findings.slice(0, maxIssues)) {
-        const labelArgs = finding.labels.length
-          ? finding.labels.map((l) => `--label "${l}"`).join(" ")
-          : "";
-
-        // Escape for shell args
-        const title = finding.title.replace(/"/g, '\\"');
+      for (let i = 0; i < findings.slice(0, maxIssues).length; i++) {
+        const finding = findings[i]!;
         const fileNote = finding.file ? `\n\n**File:** \`${finding.file}\`` : "";
-        const severityNote = `\n\n**Severity:** ${finding.severity}`;
-        const body = (finding.body + fileNote + severityNote).replace(/"/g, '\\"');
+        const meta = `\n\n---\n**Severity:** ${finding.severity}  \n**Labels:** ${finding.labels.join(", ") || "none"}`;
+        const fullBody = finding.body + fileNote + meta;
 
+        // Write body to temp file — avoids shell quoting issues with multiline text
+        const tmpFile = join(tmpdir(), `gh-body-${Date.now()}-${i}.md`);
+        yield* Effect.tryPromise({
+          try: () => writeFile(tmpFile, fullBody, "utf-8"),
+          catch: (e) => ({ code: "FILE_WRITE_ERROR", message: String(e) }),
+        });
+
+        const title = finding.title.replace(/"/g, '\\"');
         const result = yield* Effect.result(
           gh.execute({
-            args: `issue create --repo ${repo} --title "${title}" --body "${body}" ${labelArgs}`.trim(),
+            args: `issue create --repo ${repo} --title "${title}" --body-file "${tmpFile}"`,
           })
         );
 
+        // Clean up temp file
+        yield* Effect.tryPromise({ try: () => unlink(tmpFile), catch: () => null });
+
         if (result._tag === "Success") {
-          const url = result.success.content.trim().split("\n").find((l) => l.startsWith("https://")) ?? "";
-          created.push({ title: finding.title, url, severity: finding.severity });
+          const out = result.success.content.trim();
+          const url = out.split("\n").find((l) => l.startsWith("https://")) ?? "";
+          if (url) {
+            created.push({ title: finding.title, url, severity: finding.severity });
+          } else {
+            console.error(`[gh] issue create failed: ${out.slice(0, 200)}`);
+          }
         }
       }
 

@@ -74,6 +74,29 @@ const spawnIsolated = (
     catch: (e) => new Error(e instanceof Error ? e.message : String(e)),
   });
 
+/** Shell-aware argument splitter: handles single and double quoted strings. */
+function shellSplitArgs(input: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+    if (quote) {
+      if (ch === quote) { quote = null; }
+      else { current += ch; }
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === " " || ch === "\t") {
+      if (current) { args.push(current); current = ""; }
+    } else {
+      current += ch;
+    }
+  }
+  if (current) args.push(current);
+  return args;
+}
+
 /**
  * Creates a Tool that runs a specific external CLI with an isolated environment.
  *
@@ -109,7 +132,7 @@ export const defineCommand = (config: CommandConfig): Tool => ({
   execute: (params: Record<string, unknown>): Effect.Effect<ToolResult> =>
     Effect.gen(function* () {
       const rawArgs = String(params["args"] ?? "").trim();
-      const userArgs = rawArgs.length > 0 ? rawArgs.split(/\s+/) : [];
+      const userArgs = rawArgs.length > 0 ? shellSplitArgs(rawArgs) : [];
 
       if (config.allowedSubcommands && userArgs.length > 0) {
         const sub = userArgs[0]!;
