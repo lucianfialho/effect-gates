@@ -45,7 +45,7 @@ export type { Tool, ToolCall, ToolResult } from "./tools.js";
 export { toolResult, toolError, makeToolCall } from "./tools.js";
 
 export { runAgentLoop } from "./agent-loop.js";
-export type { AgentLoopConfig, AgentLoopResult, ProviderResponse } from "./agent-loop.js";
+export type { AgentLoopConfig, AgentLoopResult, AgentLoopEvent, ProviderResponse } from "./agent-loop.js";
 
 export { defineCommand } from "./define-command.js";
 export type { CommandConfig } from "./define-command.js";
@@ -69,9 +69,11 @@ export type {
   HarnessSession,
   HarnessResponse,
   HarnessError,
+  HarnessStreamEvent,
   SkillOptions,
   SkillResultSchema,
   CompactionScope,
+  PromptOptions,
   Role,
   Trigger,
   HarnessConfig,

@@ -3,10 +3,15 @@ import type { Message } from "./session-history.js";
 import type { Tool, ToolCall, ToolResult } from "./tools.js";
 import { toolError } from "./tools.js";
 
+export type AgentLoopEvent =
+  | { type: "tool_call"; id: string; name: string; args: string }
+  | { type: "tool_result"; id: string; name: string; output: string; isError: boolean };
+
 export interface AgentLoopConfig {
   readonly maxIterations: number;
   readonly timeoutMs?: number;
   readonly toolConcurrency?: "sequential" | "unbounded" | number;
+  readonly onEvent?: (event: AgentLoopEvent) => void;
 }
 
 export interface AgentLoopState {
@@ -95,8 +100,20 @@ export const runAgentLoop = (
         break;
       }
 
+      // Emit tool_call events before executing
+      for (const call of response.toolCalls) {
+        config.onEvent?.({ type: "tool_call", id: call.id, name: call.name, args: JSON.stringify(call.params) });
+      }
+
       const toolResultsWithIds = yield* executeTools(tools, response.toolCalls, config.toolConcurrency);
       const toolResults = toolResultsWithIds.map((r) => r.result);
+
+      // Emit tool_result events after executing
+      for (let i = 0; i < response.toolCalls.length; i++) {
+        const call = response.toolCalls[i];
+        const res = toolResultsWithIds[i].result;
+        config.onEvent?.({ type: "tool_result", id: call.id, name: call.name, output: res.content, isError: res.isError ?? false });
+      }
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),

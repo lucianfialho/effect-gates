@@ -34,6 +34,8 @@ export interface HarnessInitOptions {
   readonly tools?: Map<string, Tool>;
   /** Sandbox for session.shell() calls. */
   readonly sandbox?: { run: (cmd: string) => Effect.Effect<string, { code: string; message: string }> };
+  /** Pre-populate the session history (e.g. loaded from a persisted store). */
+  readonly initialHistory?: Message[];
 }
 
 export interface HarnessSession {
@@ -44,6 +46,8 @@ export interface HarnessSession {
   ) => Effect.Effect<TResult, HarnessError>;
   /** Direct sandbox access — bypasses LLM, runs command and returns output. */
   readonly shell: (command: string) => Effect.Effect<string, HarnessError>;
+  /** Return the current conversation history (excluding the system message). */
+  readonly getHistory: () => Effect.Effect<Message[]>;
 }
 
 /**
@@ -55,9 +59,14 @@ export interface CompactionScope {
   readonly keepRecentMessages?: number;
 }
 
+export type HarnessStreamEvent =
+  | { type: "tool_call"; id: string; name: string; args: string }
+  | { type: "tool_result"; id: string; name: string; output: string; isError: boolean };
+
 export interface PromptOptions {
   readonly role?: string;
   readonly compaction?: CompactionScope | false;
+  readonly onEvent?: (event: HarnessStreamEvent) => void;
 }
 
 export interface HarnessResponse {
@@ -72,6 +81,7 @@ export interface HarnessResponse {
     arguments: string;
     id: string;
   }>;
+  readonly iterations?: number;
 }
 
 export interface HarnessError {
@@ -189,7 +199,7 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
   const init = (options?: HarnessInitOptions): Effect.Effect<HarnessSession> =>
     Effect.gen(function* () {
       const role = roles.get(options?.role ?? DEFAULT_ROLE.name) ?? DEFAULT_ROLE;
-      const historyRef = yield* Ref.make<Message[]>([]);
+      const historyRef = yield* Ref.make<Message[]>(options?.initialHistory ?? []);
 
       // Merge config tools + per-session tools
       const sessionTools: Map<string, Tool> = new Map([
@@ -262,6 +272,7 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
               const loopResult = yield* Effect.mapError(
                 runAgentLoop(llmCall, sessionTools, messages, {
                   maxIterations: config.maxToolIterations ?? 10,
+                  onEvent: opts?.onEvent,
                 }),
                 (e) => ({ code: "AGENT_LOOP_ERROR", message: e.message }) satisfies HarnessError
               );
@@ -273,6 +284,7 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
               return {
                 content: loopResult.finalContent,
                 usage: DEFAULT_USAGE,
+                iterations: loopResult.totalIterations,
               };
             }
 
@@ -329,6 +341,8 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
             (e) => ({ code: e.code, message: e.message }) satisfies HarnessError
           );
         },
+
+        getHistory: (): Effect.Effect<Message[]> => Ref.get(historyRef),
       };
 
       return session;
