@@ -54,7 +54,7 @@ interface StreamLine {
 export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider => {
   const bin       = config.claudeBin ?? "claude";
   const cwd       = config.cwd ?? process.cwd();
-  const timeout   = config.timeoutMs ?? 180_000;
+  const timeout   = config.timeoutMs ?? 600_000; // 10 min — code review on large repos needs time
   const tools     = config.allowedTools ?? ["Bash", "Read", "Glob", "Grep"];
   const model     = config.model ?? "claude-sonnet-4-6";
   const sysFlag   = config.replaceSystemPrompt ? "--system-prompt" : "--append-system-prompt";
