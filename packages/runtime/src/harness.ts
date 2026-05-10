@@ -34,6 +34,12 @@ export interface HarnessInitOptions {
   readonly model?: string;
   readonly temperature?: number;
   readonly role?: string;
+  /**
+   * Inline system prompt — bypasses role lookup, used when the harness
+   * defines its own system prompt without registering a named role.
+   * Takes precedence over `role` if both are provided.
+   */
+  readonly systemPrompt?: string;
   /** Additional tools to add on top of config.tools for this session. */
   readonly tools?: Map<string, Tool>;
   /** Sandbox for session.shell() calls. */
@@ -212,7 +218,10 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
 
   const init = (options?: HarnessInitOptions): Effect.Effect<HarnessSession> =>
     Effect.gen(function* () {
-      const role = roles.get(options?.role ?? DEFAULT_ROLE.name) ?? DEFAULT_ROLE;
+      // Inline systemPrompt takes precedence over role lookup
+      const role: Role = options?.systemPrompt
+        ? { name: "inline", systemPrompt: options.systemPrompt }
+        : (roles.get(options?.role ?? DEFAULT_ROLE.name) ?? DEFAULT_ROLE);
       const historyRef = yield* Ref.make<Message[]>(options?.initialHistory ?? []);
       const sessionOnEvent = options?.onEvent;
 
