@@ -70,6 +70,7 @@ export type {
   HarnessResponse,
   HarnessError,
   HarnessStreamEvent,
+  KanbanFinding,
   SkillOptions,
   SkillResultSchema,
   CompactionScope,

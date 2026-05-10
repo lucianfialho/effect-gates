@@ -80,11 +80,23 @@ export interface CompactionScope {
   readonly keepRecentMessages?: number;
 }
 
+export interface KanbanFinding {
+  id: string;
+  title: string;
+  file: string | null;
+  line: number | null;
+  snippet: string | null;
+  body: string;
+  severity: "high" | "medium" | "low";
+  labels: string[];
+}
+
 export type HarnessStreamEvent =
   | { type: "tool_call";   id: string; name: string; args: string }
   | { type: "tool_result"; id: string; name: string; output: string; isError: boolean }
   | { type: "delta";       text: string }
-  | { type: "compaction";  tokensBefore: number; tokensAfter: number; messagesBefore: number; messagesAfter: number };
+  | { type: "compaction";  tokensBefore: number; tokensAfter: number; messagesBefore: number; messagesAfter: number }
+  | { type: "kanban_update"; findings: KanbanFinding[] };
 
 export interface PromptOptions {
   readonly role?: string;

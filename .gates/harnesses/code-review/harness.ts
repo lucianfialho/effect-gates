@@ -20,10 +20,10 @@ TOOLS TO USE:
 AFTER EXPLORING, output ONLY a JSON array. No text before or after. No markdown fences.
 
 FORMAT (each item):
-{"title":"<max 80 chars>","body":"## Problem\\n<what>\\n\\n## Why\\n<impact>\\n\\n## Fix\\n<how>","severity":"low"|"medium"|"high","labels":["bug"|"enhancement"|"tech-debt"|"security"|"performance"|"test"],"file":"<path or null>"}
+{"title":"<max 80 chars>","body":"## Problem\\n<what>\\n\\n## Why\\n<impact>\\n\\n## Fix\\n<how>","severity":"low"|"medium"|"high","labels":["bug"|"enhancement"|"tech-debt"|"security"|"performance"|"test"],"file":"<path or null>","line":<line number or null>,"snippet":"<2-3 lines of actual code showing the issue, or null>"}
 
 VALID LAST MESSAGE:
-[{"title":"...","body":"...","severity":"high","labels":["bug"],"file":"src/foo.ts"}]
+[{"title":"...","body":"...","severity":"high","labels":["bug"],"file":"src/foo.ts","line":42,"snippet":"const x = eval(input)"}]
 
 INVALID LAST MESSAGE (do NOT do this):
 "Let me check one more thing..."
@@ -60,6 +60,8 @@ interface Finding {
   severity: "low" | "medium" | "high";
   labels: string[];
   file: string | null;
+  line?: number | null;
+  snippet?: string | null;
 }
 
 interface ParsedParams {
@@ -78,7 +80,11 @@ function parseFindings(content: string): Finding[] {
     return parsed.filter((f): f is Finding =>
       typeof f === "object" && f !== null &&
       "title" in f && "body" in f && "severity" in f
-    );
+    ).map((f) => ({
+      ...f,
+      line: (f as Finding).line ?? null,
+      snippet: (f as Finding).snippet ?? null,
+    }));
   } catch {
     return [];
   }
@@ -176,6 +182,21 @@ Each item: {"title":"<80 chars>","body":"## Problem\\n...\\n\\n## Why\\n...\\n\\
           issues: [],
         };
       }
+
+      // ── Emit kanban data to TUI before creating issues ────────────────────
+      onEvent?.({
+        type: "kanban_update",
+        findings: findings.slice(0, maxIssues).map((f, i) => ({
+          id: `finding-${i}`,
+          title: f.title,
+          body: f.body,
+          severity: f.severity,
+          labels: f.labels,
+          file: f.file ?? null,
+          line: f.line ?? null,
+          snippet: f.snippet ?? null,
+        })),
+      });
 
       if (dryRun) {
         return {
