@@ -13,6 +13,12 @@ export interface AnthropicConfig {
   readonly model?: string;
   readonly baseUrl?: string;
   readonly thinking?: AnthropicThinking;
+  /**
+   * Override the OAuth identity headers sent when using sk-ant-oat* tokens.
+   * Defaults to Claude Code CLI headers required by Anthropic's OAuth flow.
+   * Set to false to disable identity injection entirely.
+   */
+  readonly oauthIdentity?: { appId: string; betaFlags: string } | false;
 }
 
 // ── Anthropic API types ─────────────────────────────────────────────────────
@@ -121,15 +127,16 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
             body.tool_choice = { type: "auto" };
           }
 
-          // OAuth tokens (sk-ant-oat*) require Claude Code identity headers
-          // to unlock subscription rate limits — same approach as pi-ai / Flue
           const isOAuthToken = config.apiKey.startsWith("sk-ant-oat");
 
-          if (isOAuthToken) {
-            // Inject Claude Code system identity (required by Anthropic for OAuth)
+          if (isOAuthToken && config.oauthIdentity !== false) {
+            const identity = config.oauthIdentity ?? {
+              appId: "cli",
+              betaFlags: "claude-code-20250219,oauth-2025-04-20",
+            };
             const identityBlock = {
               type: "text",
-              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+              text: `You are an AI assistant using the ${identity.appId} interface.`,
             };
             if (body.system) {
               body.system = [identityBlock, { type: "text", text: body.system }];
@@ -139,13 +146,18 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
           }
 
           const authHeaders: Record<string, string> = isOAuthToken
-            ? {
-                "Authorization": `Bearer ${config.apiKey}`,
-                "anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
-                "user-agent": "claude-cli/2.1.75",
-                "x-app": "cli",
-                "anthropic-dangerous-direct-browser-access": "true",
-              }
+            ? (() => {
+                const identity = config.oauthIdentity !== false
+                  ? (config.oauthIdentity ?? { appId: "cli", betaFlags: "claude-code-20250219,oauth-2025-04-20" })
+                  : null;
+                return {
+                  "Authorization": `Bearer ${config.apiKey}`,
+                  ...(identity ? {
+                    "anthropic-beta": identity.betaFlags,
+                    "x-app": identity.appId,
+                  } : {}),
+                };
+              })()
             : { "x-api-key": config.apiKey };
 
           const response = await fetch(`${baseUrl}/messages`, {
@@ -188,8 +200,21 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
                 }))
               : undefined;
 
-          const inputCost = data.usage.input_tokens * 0.000003;
-          const outputCost = data.usage.output_tokens * 0.000015;
+          // Per-model pricing ($/token). Source: https://www.anthropic.com/pricing
+          const ANTHROPIC_PRICES: Record<string, { input: number; output: number }> = {
+            "claude-opus-4-7":    { input: 0.000015,   output: 0.000075  },
+            "claude-sonnet-4-6":  { input: 0.000003,   output: 0.000015  },
+            "claude-haiku-4-5":   { input: 0.0000008,  output: 0.000004  },
+            "claude-3-5-sonnet":  { input: 0.000003,   output: 0.000015  },
+            "claude-3-opus":      { input: 0.000015,   output: 0.000075  },
+            "claude-3-haiku":     { input: 0.00000025, output: 0.00000125 },
+          };
+          const modelId = data.model ?? model;
+          const prices = ANTHROPIC_PRICES[modelId]
+            ?? ANTHROPIC_PRICES[Object.keys(ANTHROPIC_PRICES).find((k) => modelId.startsWith(k)) ?? ""]
+            ?? { input: 0.000003, output: 0.000015 };
+          const inputCost = data.usage.input_tokens * prices.input;
+          const outputCost = data.usage.output_tokens * prices.output;
 
           return {
             content: textContent,

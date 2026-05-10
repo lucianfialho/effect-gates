@@ -100,7 +100,6 @@ export const makeOpenAIProvider = (config: OpenAIConfig): Provider => {
       Effect.tryPromise({
         try: async () => {
           const openAIMessages = messages
-            .filter((m) => m.role !== "system" || true) // keep system
             .flatMap((m) => {
               // system/context → system role
               if (m.role === "system") return [{ role: "system", content: m.content }];
@@ -151,8 +150,18 @@ export const makeOpenAIProvider = (config: OpenAIConfig): Provider => {
                 }))
               : undefined;
 
-          const inputCost = data.usage.prompt_tokens * 0.000003;
-          const outputCost = data.usage.completion_tokens * 0.000015;
+          // Per-model pricing ($/token). Source: https://openai.com/pricing
+          const OPENAI_PRICES: Record<string, { input: number; output: number }> = {
+            "gpt-4o":       { input: 0.0000025,  output: 0.000010  },
+            "gpt-4o-mini":  { input: 0.00000015, output: 0.0000006 },
+            "o3":           { input: 0.000010,   output: 0.000040  },
+            "o3-mini":      { input: 0.0000011,  output: 0.0000044 },
+            "o1":           { input: 0.000015,   output: 0.000060  },
+            "gpt-4-turbo":  { input: 0.000010,   output: 0.000030  },
+          };
+          const prices = OPENAI_PRICES[model] ?? { input: 0.000003, output: 0.000015 };
+          const inputCost = data.usage.prompt_tokens * prices.input;
+          const outputCost = data.usage.completion_tokens * prices.output;
 
           return {
             content: choice.message.content ?? "",

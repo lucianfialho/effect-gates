@@ -11,6 +11,8 @@ interface MiniMaxMessage {
   role: string;
   content?: string;
   name?: string;
+  tool_call_id?: string;
+  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string }; index: number }>;
 }
 
 interface MiniMaxFunctionCall {
@@ -63,15 +65,33 @@ export const makeMiniMaxProvider = (config: MiniMaxConfig): Provider => {
         try: async () => {
           const body: Record<string, unknown> = {
             model,
-            messages: messages.map((m) => {
-              const msg: MiniMaxMessage = {
-                role: m.role,
-                content: m.content,
-              };
-              if (m.role === "assistant" && m.toolCalls) {
-                msg.content = m.content || "";
+            messages: messages.flatMap((m): MiniMaxMessage[] => {
+              // context role → system
+              if (m.role === "context") {
+                return [{ role: "system", content: m.content }];
               }
-              return msg;
+              // tool result messages
+              if (m.toolResults && m.toolResults.length > 0) {
+                return m.toolResults.map((tr) => ({
+                  role: "tool",
+                  content: tr.content,
+                  tool_call_id: tr.toolCallId,
+                } as MiniMaxMessage));
+              }
+              // assistant message with tool calls
+              if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
+                return [{
+                  role: "assistant",
+                  content: m.content || "",
+                  tool_calls: m.toolCalls.map((tc) => ({
+                    id: tc.id,
+                    type: "function",
+                    function: { name: tc.name, arguments: tc.arguments },
+                    index: 0,
+                  })),
+                } as MiniMaxMessage];
+              }
+              return [{ role: m.role, content: m.content }];
             }),
             temperature: 0.7,
             max_tokens: 4096,
@@ -110,8 +130,13 @@ export const makeMiniMaxProvider = (config: MiniMaxConfig): Provider => {
             throw new Error("No response from MiniMax");
           }
 
-          const inputCost = (data.usage.prompt_tokens * 0.000) + (data.usage.completion_tokens * 0.001);
-          const outputCost = data.usage.completion_tokens * 0.000;
+          // MiniMax pricing (per token): https://www.minimaxi.com/en/price
+          const MINIMAX_PRICES: Record<string, { input: number; output: number }> = {
+            "MiniMax-M2.7": { input: 0.0000003, output: 0.0000011 },
+          };
+          const prices = MINIMAX_PRICES[data.model] ?? MINIMAX_PRICES["MiniMax-M2.7"]!;
+          const inputCost = data.usage.prompt_tokens * prices.input;
+          const outputCost = data.usage.completion_tokens * prices.output;
 
           const toolCalls: ToolCall[] | undefined = choice.message.tool_calls?.map((tc) => ({
             id: tc.id,
