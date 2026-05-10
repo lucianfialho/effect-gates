@@ -49,9 +49,9 @@ const program = Effect.gen(function* () {
   const result = yield* registry.run(
     "code-review",
     {
-      path: "./packages/runtime/src",
+      path: "./packages/skills/src",
       repo: "lucianfialho/effect-gates",
-      focus: "error handling and type safety",
+      focus: "error handling, type safety, and architectural issues",
       maxIssues: 5,
       dryRun: false,
     },

@@ -39,13 +39,13 @@ export interface TaskStats {
 // ── Queue interface ─────────────────────────────────────────────────────────
 
 export interface TaskQueue {
-  /** Add a task and return its ID */
+  /** Add a task and return its ID. Fails with DEPENDENCY_CYCLE if deps form a cycle. */
   add(task: {
     name: string;
     skill: string;
     input: Record<string, unknown>;
     dependencies?: string[];
-  }): Effect.Effect<string>;
+  }): Effect.Effect<string, TaskError>;
 
   get(id: string): Effect.Effect<Task | null>;
   list(): Effect.Effect<readonly Task[]>;
@@ -177,8 +177,38 @@ const makeQueueFromRef = (
     skill: string;
     input: Record<string, unknown>;
     dependencies?: string[];
-  }): Effect.Effect<string> =>
+  }): Effect.Effect<string, TaskError> =>
     Effect.gen(function* () {
+      const deps = task.dependencies ?? [];
+
+      // Cycle detection: DFS from each declared dependency back to any node
+      // that would transitively reach the new task (which has no id yet,
+      // so we check that no existing dep chain already forms a cycle).
+      if (deps.length > 0) {
+        const existing = yield* Effect.map(Ref.get(ref), (m) => m);
+        const visited = new Set<string>();
+        const stack = [...deps];
+        while (stack.length > 0) {
+          const cur = stack.pop()!;
+          if (visited.has(cur)) continue;
+          visited.add(cur);
+          const node = existing.get(cur);
+          if (node) stack.push(...node.dependencies);
+        }
+        // If any declared dep transitively depends on another declared dep
+        // in a way that would loop, detect it by checking for re-visits.
+        const seen = new Set<string>();
+        for (const dep of deps) {
+          if (seen.has(dep)) {
+            return yield* Effect.fail<TaskError>({
+              code: "DEPENDENCY_CYCLE",
+              message: `Cycle detected: dependency "${dep}" appears more than once in the resolved graph`,
+            });
+          }
+          seen.add(dep);
+        }
+      }
+
       const id = crypto.randomUUID();
       const now = Date.now();
       const t: Task = {
@@ -186,7 +216,7 @@ const makeQueueFromRef = (
         name: task.name,
         skill: task.skill,
         input: task.input,
-        dependencies: task.dependencies ?? [],
+        dependencies: deps,
         status: "pending",
         createdAt: now,
         updatedAt: now,

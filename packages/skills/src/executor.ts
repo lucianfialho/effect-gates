@@ -1,4 +1,5 @@
 import { Effect, Ref } from "effect";
+import { evaluateCondition } from "./interpolate.js";
 import type {
   SkillConfig,
   SkillState,
@@ -27,19 +28,8 @@ export const createSkillError = (
 
 const evaluateGuard = (guard: GuardCondition, context: SkillContext): boolean => {
   if (!guard.if) return true;
-
-  const condition = guard.if.trim();
-
-  const severityMatch = condition.match(/^severity\s*==\s*["']?(\w+)["']?$/);
-  if (severityMatch) {
-    return context.metadata["severity"] === severityMatch[1];
-  }
-
-  if (condition === "tests_failed") return context.metadata["tests_failed"] === true;
-  if (condition === "error") return context.errors.length > 0;
-  if (condition === "success") return context.results.length > 0;
-
-  return true;
+  // Delegate to the unified evaluateCondition from interpolate.ts
+  return evaluateCondition(guard.if, context);
 };
 
 const evaluateWhen = (when: string, lastOutput: unknown): boolean => {

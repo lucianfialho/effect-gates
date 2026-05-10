@@ -174,11 +174,19 @@ export const injectFiles = (
     if (matches.length === 0) return template;
 
     let result = template;
+    const base = path.resolve(basePath ?? process.cwd());
+
     for (const match of matches) {
       const filePath = match[1].trim();
       const fullPath = path.isAbsolute(filePath)
-        ? filePath
-        : path.join(basePath ?? process.cwd(), filePath);
+        ? path.resolve(filePath)
+        : path.resolve(base, filePath);
+
+      // Path traversal guard: resolved path must stay within basePath
+      if (!fullPath.startsWith(base + path.sep) && fullPath !== base) {
+        result = result.replace(match[0], `[file access denied: ${filePath}]`);
+        continue;
+      }
 
       const loaded = yield* Effect.result(
         Effect.tryPromise({

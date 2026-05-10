@@ -35,7 +35,13 @@ export const createLLMAwareExecutor = (
     skillName: string,
     inputs: Record<string, string>,
     context: SkillContext
-  ) => Effect.Effect<unknown, Error>
+  ) => Effect.Effect<unknown, Error>,
+  llmOptions?: {
+    /** LLM completions endpoint. Default: process.env.LLM_API_URL or MiniMax */
+    url?: string;
+    /** Model ID. Default: process.env.LLM_MODEL or "MiniMax-M2.7" */
+    model?: string;
+  }
 ): SkillExecutorConfig => {
   const tools = toolsMap(sandbox);
 
@@ -62,14 +68,21 @@ export const createLLMAwareExecutor = (
         return Effect.gen(function* () {
           const response = yield* Effect.tryPromise({
             try: async () => {
-              const res = await fetch("https://api.minimax.io/v1/chat/completions", {
+              const llmUrl = llmOptions?.url
+                ?? process.env["LLM_API_URL"]
+                ?? "https://api.minimax.io/v1/chat/completions";
+              const llmModel = llmOptions?.model
+                ?? process.env["LLM_MODEL"]
+                ?? "MiniMax-M2.7";
+
+              const res = await fetch(llmUrl, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
                   "Authorization": `Bearer ${agentApiKey}`,
                 },
                 body: JSON.stringify({
-                  model: "MiniMax-M2.7",
+                  model: llmModel,
                   messages: [{ role: "user", content: prompt }],
                   temperature: 0.7,
                 }),
