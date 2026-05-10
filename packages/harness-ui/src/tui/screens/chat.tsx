@@ -110,7 +110,9 @@ export function Chat({ harness, sessionId, onBack, onOpenSessions }: Props) {
             .map((m) => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content, timestamp: m.timestamp }))
         );
       })
-      .catch(() => {});
+      .catch((err) => {
+        setMessages([{ id: crypto.randomUUID(), role: "system", content: `Failed to load history: ${String(err)}`, timestamp: Date.now() }]);
+      });
   }, [sessionId]);
 
   useInput((inputChar, key) => {

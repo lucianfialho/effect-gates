@@ -75,7 +75,7 @@ export function MessageList({ messages, toolCalls, maxHeight }: Props) {
             </Text>
             <Text dimColor>
               {" "}
-              {new Date(msg.timestamp).toLocaleTimeString("pt-BR", {
+              {new Date(msg.timestamp).toLocaleTimeString(undefined, {
                 hour: "2-digit",
                 minute: "2-digit",
               })}

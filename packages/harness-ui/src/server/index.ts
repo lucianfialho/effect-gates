@@ -49,6 +49,10 @@ const sse = (type: string, data: unknown): string =>
 export function createServer(harnesses: LoadedHarness[]) {
   const app = new Hono();
 
+  // #27 — create once, share across all requests
+  const storePromise = Effect.runPromise(makeFileSessionStore());
+  const sandboxPromise = Effect.runPromise(makeLocalSandbox({ cwd: process.cwd() }));
+
   app.get("/api/harnesses", (c) =>
     c.json(harnesses.map((h) => ({
       name: h.name,
@@ -64,7 +68,7 @@ export function createServer(harnesses: LoadedHarness[]) {
 
     // Resume an existing persisted session
     if (body.resumeSessionId) {
-      const store = await Effect.runPromise(makeFileSessionStore());
+      const store = await storePromise;
       const data = await Effect.runPromise(store.load(`harness-ui:${body.resumeSessionId}`));
       if (!data) return c.json({ error: "Session not found" }, 404);
       const harnessName = (data.metadata as Record<string, string>).harnessName ?? "Assistant";
@@ -85,7 +89,7 @@ export function createServer(harnesses: LoadedHarness[]) {
   });
 
   app.get("/api/sessions", async (c) => {
-    const store = await Effect.runPromise(makeFileSessionStore());
+    const store = await storePromise;
     const keys = await Effect.runPromise(listSessions());
 
     const result = (
@@ -93,11 +97,13 @@ export function createServer(harnesses: LoadedHarness[]) {
         keys
           .filter((k) => k.startsWith("harness-ui_"))
           .map(async (key) => {
-            const originalKey = key.replace(/^harness-ui_/, "harness-ui:");
-            const data = await Effect.runPromise(store.load(originalKey));
+            // Pass the raw filename key — store.load("harness-ui_uuid") and
+            // store.load("harness-ui:uuid") resolve to the same file via sessionPath().
+            // Using the raw key avoids the fragile prefix substitution.
+            const data = await Effect.runPromise(store.load(key));
             if (!data) return null;
             const meta = data.metadata as Record<string, string>;
-            const sessionId = meta.sessionId ?? key.replace("harness-ui_", "");
+            const sessionId = meta.sessionId ?? key.replace(/^harness-ui_/, "");
             const msgEntries = data.entries.filter((e) => e.type === "message");
             const lastUser = [...msgEntries]
               .reverse()
@@ -123,7 +129,7 @@ export function createServer(harnesses: LoadedHarness[]) {
 
   app.delete("/api/sessions/:id", async (c) => {
     const sessionId = c.req.param("id");
-    const store = await Effect.runPromise(makeFileSessionStore());
+    const store = await storePromise;
     await Effect.runPromise(store.delete(`harness-ui:${sessionId}`));
     sessions.delete(sessionId);
     return c.json({ ok: true });
@@ -150,7 +156,7 @@ export function createServer(harnesses: LoadedHarness[]) {
         const provider = makeProvider(loaded.config);
 
         // Load persisted history
-        const store = await Effect.runPromise(makeFileSessionStore());
+        const store = await storePromise;
         const storageKey = `harness-ui:${sessionId}`;
         const existing = await Effect.runPromise(store.load(storageKey));
         const history = await Effect.runPromise(SessionHistory.fromData(existing));
@@ -162,7 +168,7 @@ export function createServer(harnesses: LoadedHarness[]) {
           loaded.config.systemPrompt ?? "You are a helpful assistant.";
 
         // Set up sandbox + tools (only those declared in harness config)
-        const sandbox = await Effect.runPromise(makeLocalSandbox({ cwd: process.cwd() }));
+        const sandbox = await sandboxPromise;
         const allTools = toolsMap(sandbox);
         const declaredToolNames = loaded.config.tools ?? [];
 
@@ -182,8 +188,13 @@ export function createServer(harnesses: LoadedHarness[]) {
         let finalContent = "";
         let iteration = 0;
 
+        // #29: propagate HTTP request abort signal so LLM calls stop when client disconnects
+        const abortSignal = c.req.raw.signal;
+
         // ── Agent loop ─────────────────────────────────────────────────────
         while (iteration < MAX_TOOL_ITERATIONS) {
+          if (abortSignal?.aborted) break;
+
           const result = await Effect.runPromise(
             provider.chat(currentMessages, providerTools.length > 0 ? providerTools : undefined)
           );
@@ -271,7 +282,7 @@ export function createServer(harnesses: LoadedHarness[]) {
 
   app.get("/api/sessions/:id/history", async (c) => {
     const sessionId = c.req.param("id");
-    const store = await Effect.runPromise(makeFileSessionStore());
+    const store = await storePromise;
     const data = await Effect.runPromise(store.load(`harness-ui:${sessionId}`));
     if (!data) return c.json({ messages: [] });
     const history = await Effect.runPromise(SessionHistory.fromData(data));
@@ -324,7 +335,7 @@ export function createServer(harnesses: LoadedHarness[]) {
 
         await write("skill_start", { name: found.name, states: found.config.states.map((st) => st.id) });
 
-        const sandbox = await Effect.runPromise(makeLocalSandbox({ cwd: process.cwd() }));
+        const sandbox = await sandboxPromise;
         const executorConfig = {
           ...createSandboxToolExecutor(sandbox),
           onEvent: (event: { type: string; state?: string; transition?: string; data?: unknown }) => {
