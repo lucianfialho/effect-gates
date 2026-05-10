@@ -7,11 +7,11 @@ import { runAgentLoop } from "./agent-loop.js";
 
 export interface FunctionalHarnessDef<P = unknown, E = Record<string, string>> {
   readonly _tag: "functional";
-  readonly fn: (ctx: HarnessContext<P, E>) => Promise<unknown> | Effect.Effect<unknown, HarnessError>;
+  readonly fn: (ctx: HarnessContext<P, E>) => Effect.Effect<unknown, HarnessError>;
 }
 
 export function defineHarness<P = unknown, E = Record<string, string>>(
-  fn: (ctx: HarnessContext<P, E>) => Promise<unknown> | Effect.Effect<unknown, HarnessError>
+  fn: (ctx: HarnessContext<P, E>) => Effect.Effect<unknown, HarnessError>
 ): FunctionalHarnessDef<P, E> {
   return { _tag: "functional", fn };
 }
@@ -346,27 +346,18 @@ export const runHarness = <P = unknown, E extends Record<string, string> = Recor
   config: HarnessConfig,
   registry?: HarnessRegistry
 ): Effect.Effect<unknown, HarnessError> => {
-  const harness = createHarness(config, registry);
+  const h = createHarness(config, registry);
 
   const ctx: HarnessContext<P, E> = {
     payload,
     env,
-    init: harness.init,
+    init: h.init,
     harness: registry
       ? (name, p) => registry.run(name, p, env)
       : () => Effect.fail({ code: "NO_REGISTRY", message: "No harness registry configured. Wrap your harnesses with createHarnessRegistry()." }),
   };
 
-  const result = def.fn(ctx);
-
-  if (result instanceof Promise) {
-    return Effect.tryPromise({
-      try: () => result,
-      catch: (e) => ({ code: "HARNESS_ERROR", message: String(e) }) satisfies HarnessError,
-    });
-  }
-
-  return result;
+  return def.fn(ctx);
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
