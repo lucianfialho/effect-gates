@@ -59,7 +59,9 @@ export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider 
   const model     = config.model ?? "claude-sonnet-4-6";
   const sysFlag   = config.replaceSystemPrompt ? "--system-prompt" : "--append-system-prompt";
 
-  let sessionId: string | null = null;
+  // Map<sessionKey, sessionId> — avoids race conditions on concurrent calls.
+  // sessionKey is a stable hash of the system prompt, isolating conversations.
+  const sessions = new Map<string, string>();
 
   return {
     id: "claude-code",
@@ -75,6 +77,8 @@ export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider 
             import("node:readline").then(({ createInterface }) => {
               const systemMsg = messages.find((m) => m.role === "system" || m.role === "context");
               const lastUser  = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+              // Stable key per conversation thread — hash of system prompt content
+              const sessionKey = systemMsg?.content?.slice(0, 64) ?? "__default__";
 
               const args: string[] = [
                 "-p", lastUser,
@@ -86,13 +90,18 @@ export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider 
               ];
 
               if (systemMsg?.content) args.push(sysFlag, systemMsg.content);
-              if (sessionId) args.push("--resume", sessionId);
+              const existingSession = sessions.get(sessionKey);
+              if (existingSession) args.push("--resume", existingSession);
 
               const proc = spawn(bin, args, {
                 cwd,
                 timeout,
-                stdio: ["ignore", "pipe", "pipe"],
+                stdio: ["ignore", "pipe", "pipe"],  // ignore stdin
               });
+
+              // Collect stderr so error messages aren't silently lost
+              const stderrChunks: Buffer[] = [];
+              proc.stderr!.on("data", (d: Buffer) => stderrChunks.push(d));
 
               // Accumulate tool input JSON per content block index
               const toolInputBuffers = new Map<number, { id: string; name: string; json: string }>();
@@ -170,12 +179,11 @@ export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider 
 
               proc.on("close", (code) => {
                 if (code !== 0 && !finalContent) {
-                  const errOut: Buffer[] = [];
-                  // stderr already consumed — include any partial data
-                  return reject(new Error(`claude exited ${code}`));
+                  const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
+                  return reject(new Error(`claude exited ${code}${stderr ? `: ${stderr}` : ""}`));
                 }
 
-                if (finalSessionId) sessionId = finalSessionId;
+                if (finalSessionId) sessions.set(sessionKey, finalSessionId);
 
                 resolve({
                   content: finalContent,

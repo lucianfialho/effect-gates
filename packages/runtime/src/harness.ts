@@ -83,6 +83,7 @@ export interface CompactionScope {
 export type HarnessStreamEvent =
   | { type: "tool_call";   id: string; name: string; args: string }
   | { type: "tool_result"; id: string; name: string; output: string; isError: boolean }
+  | { type: "delta";       text: string }
   | { type: "compaction";  tokensBefore: number; tokensAfter: number; messagesBefore: number; messagesAfter: number };
 
 export interface PromptOptions {
