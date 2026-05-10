@@ -94,7 +94,7 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
 
   return {
     id: "anthropic",
-    chat: (messages: Message[], tools?: Tool[]): Effect.Effect<ChatResponse, ProviderError> =>
+    chat: (messages: Message[], tools?: Tool[], onEvent?: (e: import("../types.js").ProviderStreamEvent) => void): Effect.Effect<ChatResponse, ProviderError> =>
       Effect.tryPromise({
         try: async () => {
           const systemMessage = messages.find((m) => m.role === "system" || m.role === "context");
@@ -160,14 +160,129 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
               })()
             : { "x-api-key": config.apiKey };
 
+          const headers = {
+            "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
+            ...authHeaders,
+          };
+
+          // ── Streaming mode when onEvent is provided ───────────────────────
+          if (onEvent) {
+            body.stream = true;
+            const response = await fetch(`${baseUrl}/messages`, {
+              method: "POST", headers, body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+              const error = await response.text();
+              const retryAfter = response.headers.get("retry-after");
+              throw new Error(`Anthropic API error: ${response.status}${retryAfter ? ` (retry-after: ${retryAfter}s)` : ""} - ${error}`);
+            }
+
+            // Parse SSE stream line by line
+            const reader = response.body!.getReader();
+            const dec = new TextDecoder();
+            let buf = "";
+            const toolBufs = new Map<number, { id: string; name: string; json: string }>();
+            let textContent = "";
+            let thinkingContent = "";
+            let finalUsage = { input_tokens: 0, output_tokens: 0 };
+            let stopReason = "end_turn";
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buf += dec.decode(value, { stream: true });
+              const lines = buf.split("\n");
+              buf = lines.pop() ?? "";
+
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const raw = line.slice(6).trim();
+                if (raw === "[DONE]") continue;
+                let ev: Record<string, unknown>;
+                try { ev = JSON.parse(raw) as Record<string, unknown>; } catch { continue; }
+
+                const t = ev.type as string;
+
+                if (t === "content_block_start") {
+                  const idx = ev.index as number;
+                  const cb = ev.content_block as Record<string, unknown>;
+                  if (cb.type === "tool_use") {
+                    toolBufs.set(idx, { id: cb.id as string, name: cb.name as string, json: "" });
+                  }
+                }
+
+                if (t === "content_block_delta") {
+                  const idx = ev.index as number;
+                  const delta = ev.delta as Record<string, unknown>;
+                  if (delta.type === "text_delta" && delta.text) {
+                    textContent += delta.text as string;
+                    onEvent({ type: "delta", text: delta.text as string });
+                  }
+                  if (delta.type === "thinking_delta" && delta.thinking) {
+                    thinkingContent += delta.thinking as string;
+                    onEvent({ type: "delta", text: delta.thinking as string });
+                  }
+                  if (delta.type === "input_json_delta") {
+                    const buf2 = toolBufs.get(idx);
+                    if (buf2) buf2.json += (delta.partial_json as string) ?? "";
+                  }
+                }
+
+                if (t === "content_block_stop") {
+                  const idx = ev.index as number;
+                  const buf2 = toolBufs.get(idx);
+                  if (buf2) {
+                    onEvent({ type: "tool_call", id: buf2.id, name: buf2.name, args: buf2.json });
+                    toolBufs.delete(idx);
+                  }
+                }
+
+                if (t === "message_delta") {
+                  const d = ev.delta as Record<string, unknown>;
+                  stopReason = (d.stop_reason as string) ?? stopReason;
+                  const u = ev.usage as Record<string, number> | undefined;
+                  if (u) finalUsage.output_tokens = u.output_tokens ?? 0;
+                }
+
+                if (t === "message_start") {
+                  const msg = ev.message as Record<string, unknown>;
+                  const u = msg.usage as Record<string, number> | undefined;
+                  if (u) finalUsage.input_tokens = u.input_tokens ?? 0;
+                }
+              }
+            }
+
+            const modelId = model;
+            const ANTHROPIC_PRICES: Record<string, { input: number; output: number }> = {
+              "claude-haiku-4-5":  { input: 0.0000008,  output: 0.000004  },
+              "claude-sonnet-4-6": { input: 0.000003,   output: 0.000015  },
+            };
+            const prices = ANTHROPIC_PRICES[Object.keys(ANTHROPIC_PRICES).find(k => model.startsWith(k)) ?? ""]
+              ?? { input: 0.000003, output: 0.000015 };
+
+            const toolCallsFromStream: ToolCall[] | undefined = toolBufs.size === 0
+              ? (stopReason === "tool_use"
+                  ? [] // tool calls were already emitted via onEvent
+                  : undefined)
+              : undefined;
+
+            return {
+              content: textContent,
+              toolCalls: toolCallsFromStream,
+              usage: {
+                inputTokens: finalUsage.input_tokens,
+                outputTokens: finalUsage.output_tokens,
+                totalTokens: finalUsage.input_tokens + finalUsage.output_tokens,
+              },
+              cost: finalUsage.input_tokens * prices.input + finalUsage.output_tokens * prices.output,
+              ...(thinkingContent ? { reasoningDetails: thinkingContent } : {}),
+            } satisfies ChatResponse;
+          }
+
+          // ── Non-streaming (original path) ─────────────────────────────────
           const response = await fetch(`${baseUrl}/messages`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "anthropic-version": "2023-06-01",
-              ...authHeaders,
-            },
-            body: JSON.stringify(body),
+            method: "POST", headers, body: JSON.stringify(body),
           });
 
           if (!response.ok) {
