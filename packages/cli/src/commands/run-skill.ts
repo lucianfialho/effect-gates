@@ -13,15 +13,13 @@ interface RunSkillOptions {
   basePath?: string;
 }
 
-const skillCache = new Map<string, DiscoveredSkill>();
-
-const getOrLoadSkill = async (skillPath: string): Promise<DiscoveredSkill> => {
-  if (skillCache.has(skillPath)) {
-    return skillCache.get(skillPath)!;
-  }
-  const skill = await Effect.runPromise(loadSkillFromDirectory(skillPath)) as DiscoveredSkill;
-  skillCache.set(skillPath, skill);
-  return skill;
+// Fix #21: removed module-level skillCache — a global cache causes stale state
+// across invocations (e.g. when a skill's files are updated on disk between
+// calls in a long-running process). Skills are now loaded fresh per invocation.
+// Callers that need caching should implement it at a higher level with explicit
+// invalidation logic.
+const loadSkill = async (skillPath: string): Promise<DiscoveredSkill> => {
+  return Effect.runPromise(loadSkillFromDirectory(skillPath)) as Promise<DiscoveredSkill>;
 };
 
 export const runSkill = async (options: RunSkillOptions): Promise<void> => {
@@ -31,7 +29,7 @@ export const runSkill = async (options: RunSkillOptions): Promise<void> => {
     console.log(`Loading skill from: ${skillPath}`);
   }
 
-  const skillResult = await getOrLoadSkill(skillPath);
+  const skillResult = await loadSkill(skillPath);
 
   if (verbose) {
     console.log(`Skill loaded: ${skillResult.name}`);
@@ -55,7 +53,7 @@ const delegateSkill = (
         console.log(`Delegating to skill: ${targetSkillName} with inputs:`, inputs);
       }
       const targetPath = `${basePath}/.gates/skills/${targetSkillName}`;
-      const targetSkill = await getOrLoadSkill(targetPath);
+      const targetSkill = await loadSkill(targetPath);
       const targetSandbox = await Effect.runPromise(makeSandbox(sandboxType));
       const executor = await createSkillExecutorWithSandbox(targetSkill.config, targetSandbox, apiKey);
       const result = await Effect.runPromise(executor.execute(inputs));
