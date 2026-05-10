@@ -1,178 +1,195 @@
 import { Effect } from "effect";
-import type { Provider, ProviderError, Message, ChatResponse } from "../types.js";
+import type { Provider, ProviderError, Message, ChatResponse, ProviderStreamEvent } from "../types.js";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 export interface ClaudeCodeConfig {
-  /** Model to use. Defaults to claude-sonnet-4-6. */
   readonly model?: string;
   /**
-   * Tools Claude is allowed to use without prompting.
-   * Uses Claude Code built-in tool names: Bash, Read, Write, Edit, Glob, Grep.
-   * Custom tools: mcp__<server>__<tool>
-   * Default: ["Bash", "Read", "Glob", "Grep"] — safe for read-only investigation.
+   * Claude Code built-in tool names: Bash, Read, Write, Edit, Glob, Grep.
+   * Default: ["Bash", "Read", "Glob", "Grep"]
    */
   readonly allowedTools?: string[];
-  /**
-   * Path to the claude binary. Default: "claude" (assumes it's in PATH).
-   */
   readonly claudeBin?: string;
-  /**
-   * Working directory for claude -p. Default: process.cwd().
-   */
   readonly cwd?: string;
-  /**
-   * Timeout in ms for each claude -p call. Default: 120_000 (2 min).
-   */
   readonly timeoutMs?: number;
   /**
-   * Use --system-prompt instead of --append-system-prompt.
-   * When true, replaces Claude Code's default system prompt entirely.
-   * When false (default), appends to it.
+   * --system-prompt replaces Claude Code's default.
+   * --append-system-prompt (default) extends it.
    */
   readonly replaceSystemPrompt?: boolean;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Stream event types from claude -p stream-json ────────────────────────────
 
-interface ClaudeResult {
+interface StreamLine {
   type: string;
-  subtype: string;
-  is_error: boolean;
-  result: string;
-  session_id: string;
-  total_cost_usd: number;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    server_tool_use?: Record<string, number>;
+  subtype?: string;
+  event?: {
+    type: string;
+    index?: number;
+    content_block?: { type: string; id?: string; name?: string; input?: unknown };
+    delta?: { type: string; text?: string; partial_json?: string };
   };
+  // final result line
+  result?: string;
+  session_id?: string;
+  total_cost_usd?: number;
+  usage?: { input_tokens?: number; output_tokens?: number };
+  is_error?: boolean;
 }
-
-const spawnClaude = (
-  args: string[],
-  cwd: string,
-  timeoutMs: number
-): Promise<string> =>
-  new Promise<string>((resolve, reject) => {
-    import("node:child_process").then(({ spawn }) => {
-      const chunks: Buffer[] = [];
-      const errChunks: Buffer[] = [];
-      // stdio: ['ignore', ...] closes stdin — equivalent to < /dev/null
-      // Without this, claude -p waits 3s for piped input before proceeding
-      const proc = spawn("claude", args, { cwd, timeout: timeoutMs, stdio: ["ignore", "pipe", "pipe"] });
-
-      proc.stdout.on("data", (d: Buffer) => chunks.push(d));
-      proc.stderr.on("data", (d: Buffer) => errChunks.push(d));
-
-      proc.on("close", (code) => {
-        const out = Buffer.concat(chunks).toString("utf-8").trim();
-        const err = Buffer.concat(errChunks).toString("utf-8").trim();
-        if (code !== 0) {
-          reject(new Error(`claude exited ${code}: ${err || out || "(no output)"}`));
-        } else {
-          resolve(out);
-        }
-      });
-
-      proc.on("error", (e) => reject(e));
-    });
-  });
 
 // ── Provider ───────────────────────────────────────────────────────────────────
 
 /**
- * Provider that runs `claude -p` as a subprocess.
+ * Provider that spawns `claude -p` using subscription OAuth — no API rate limits.
  *
- * Why: OAuth tokens (sk-ant-oat01) used directly against api.anthropic.com
- * share the subscription quota but are subject to API-tier rate limits.
- * Running via the `claude` binary uses the subscription routing directly,
- * giving full Pro/Max rate limits.
+ * Streaming: uses `--output-format stream-json --verbose --include-partial-messages`
+ * to emit events in real-time:
+ *   - tool_call: when Claude starts a tool (Bash, Read, Glob, Grep…)
+ *   - delta:     text tokens as they arrive
  *
- * Tool calling: Claude Code handles built-in tools (Bash, Read, Glob, Grep, etc.)
- * internally. Custom tools can be added via MCP servers. The provider does not
- * surface intermediate tool calls to the harness — only the final result.
- *
- * Session continuity: the provider tracks `session_id` from each response and
- * passes `--resume session_id` on subsequent calls, preserving conversation
- * history inside Claude Code's session storage.
- *
- * @example
- * const provider = makeClaudeCodeProvider({
- *   model: "claude-sonnet-4-6",
- *   allowedTools: ["Bash", "Read", "Glob", "Grep"],
- * });
+ * Tool RESULTS are handled internally by Claude Code and not surfaced.
  */
 export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider => {
-  const claudeBin  = config.claudeBin ?? "claude";
-  const cwd        = config.cwd ?? process.cwd();
-  const timeoutMs  = config.timeoutMs ?? 120_000;
-  const tools      = config.allowedTools ?? ["Bash", "Read", "Glob", "Grep"];
-  const model      = config.model ?? "claude-sonnet-4-6";
-  const systemFlag = config.replaceSystemPrompt ? "--system-prompt" : "--append-system-prompt";
+  const bin       = config.claudeBin ?? "claude";
+  const cwd       = config.cwd ?? process.cwd();
+  const timeout   = config.timeoutMs ?? 180_000;
+  const tools     = config.allowedTools ?? ["Bash", "Read", "Glob", "Grep"];
+  const model     = config.model ?? "claude-sonnet-4-6";
+  const sysFlag   = config.replaceSystemPrompt ? "--system-prompt" : "--append-system-prompt";
 
-  // Session state: persists across chat() calls within the same provider instance
   let sessionId: string | null = null;
 
   return {
     id: "claude-code",
 
-    chat: (messages: Message[]): Effect.Effect<ChatResponse, ProviderError> =>
+    chat: (
+      messages: Message[],
+      _tools?: unknown,
+      onEvent?: (e: ProviderStreamEvent) => void
+    ): Effect.Effect<ChatResponse, ProviderError> =>
       Effect.tryPromise({
-        try: async () => {
-          // Extract system prompt and last user message
-          const systemMsg = messages.find(
-            (m) => m.role === "system" || m.role === "context"
-          );
-          const lastUser = [...messages]
-            .reverse()
-            .find((m) => m.role === "user")?.content ?? "";
+        try: () => new Promise<ChatResponse>((resolve, reject) => {
+          import("node:child_process").then(({ spawn }) => {
+            import("node:readline").then(({ createInterface }) => {
+              const systemMsg = messages.find((m) => m.role === "system" || m.role === "context");
+              const lastUser  = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
 
-          const args: string[] = [
-            "-p", lastUser,
-            "--model", model,
-            "--output-format", "json",
-            "--allowedTools", tools.join(","),
-          ];
+              const args: string[] = [
+                "-p", lastUser,
+                "--model", model,
+                "--output-format", "stream-json",
+                "--verbose",
+                "--include-partial-messages",
+                "--allowedTools", tools.join(","),
+              ];
 
-          // Append/replace system prompt on first call or always
-          if (systemMsg?.content) {
-            args.push(systemFlag, systemMsg.content);
-          }
+              if (systemMsg?.content) args.push(sysFlag, systemMsg.content);
+              if (sessionId) args.push("--resume", sessionId);
 
-          // Resume existing session for conversation continuity
-          if (sessionId) {
-            args.push("--resume", sessionId);
-          }
+              const proc = spawn(bin, args, {
+                cwd,
+                timeout,
+                stdio: ["ignore", "pipe", "pipe"],
+              });
 
-          const raw = await spawnClaude(args, cwd, timeoutMs);
+              // Accumulate tool input JSON per content block index
+              const toolInputBuffers = new Map<number, { id: string; name: string; json: string }>();
+              let finalContent = "";
+              let finalSessionId: string | null = null;
+              let totalCost = 0;
+              let inputTokens = 0;
+              let outputTokens = 0;
 
-          let parsed: ClaudeResult;
-          try {
-            parsed = JSON.parse(raw) as ClaudeResult;
-          } catch {
-            throw new Error(`Failed to parse claude output: ${raw.slice(0, 300)}`);
-          }
+              const rl = createInterface({ input: proc.stdout! });
 
-          if (parsed.is_error || parsed.subtype === "error") {
-            throw new Error(`Claude Code error: ${parsed.result}`);
-          }
+              rl.on("line", (line) => {
+                if (!line.trim()) return;
+                let parsed: StreamLine;
+                try { parsed = JSON.parse(line) as StreamLine; }
+                catch { return; }
 
-          // Persist session ID for next turn
-          if (parsed.session_id) {
-            sessionId = parsed.session_id;
-          }
+                // ── Final result line ──────────────────────────────────────
+                if (parsed.type === "result") {
+                  finalContent   = parsed.result ?? "";
+                  finalSessionId = parsed.session_id ?? null;
+                  totalCost      = parsed.total_cost_usd ?? 0;
+                  inputTokens    = parsed.usage?.input_tokens ?? 0;
+                  outputTokens   = parsed.usage?.output_tokens ?? 0;
+                  return;
+                }
 
-          return {
-            content: parsed.result ?? "",
-            usage: {
-              inputTokens:  parsed.usage?.input_tokens ?? 0,
-              outputTokens: parsed.usage?.output_tokens ?? 0,
-              totalTokens:  (parsed.usage?.input_tokens ?? 0) + (parsed.usage?.output_tokens ?? 0),
-            },
-            cost: parsed.total_cost_usd ?? 0,
-          } satisfies ChatResponse;
-        },
+                if (parsed.type !== "stream_event" || !parsed.event) return;
+                const ev = parsed.event;
+
+                // ── Tool call start ────────────────────────────────────────
+                if (
+                  ev.type === "content_block_start" &&
+                  ev.content_block?.type === "tool_use" &&
+                  ev.index != null
+                ) {
+                  const id   = ev.content_block.id ?? crypto.randomUUID();
+                  const name = ev.content_block.name ?? "unknown";
+                  toolInputBuffers.set(ev.index, { id, name, json: "" });
+                  return;
+                }
+
+                // ── Tool input delta (accumulate JSON) ─────────────────────
+                if (
+                  ev.type === "content_block_delta" &&
+                  ev.delta?.type === "input_json_delta" &&
+                  ev.index != null
+                ) {
+                  const buf = toolInputBuffers.get(ev.index);
+                  if (buf) buf.json += ev.delta.partial_json ?? "";
+                  return;
+                }
+
+                // ── Tool block complete → emit tool_call ───────────────────
+                if (ev.type === "content_block_stop" && ev.index != null) {
+                  const buf = toolInputBuffers.get(ev.index);
+                  if (buf) {
+                    onEvent?.({ type: "tool_call", id: buf.id, name: buf.name, args: buf.json });
+                    toolInputBuffers.delete(ev.index);
+                  }
+                  return;
+                }
+
+                // ── Text delta ─────────────────────────────────────────────
+                if (
+                  ev.type === "content_block_delta" &&
+                  ev.delta?.type === "text_delta" &&
+                  ev.delta.text
+                ) {
+                  onEvent?.({ type: "delta", text: ev.delta.text });
+                }
+              });
+
+              proc.on("error", reject);
+
+              proc.on("close", (code) => {
+                if (code !== 0 && !finalContent) {
+                  const errOut: Buffer[] = [];
+                  // stderr already consumed — include any partial data
+                  return reject(new Error(`claude exited ${code}`));
+                }
+
+                if (finalSessionId) sessionId = finalSessionId;
+
+                resolve({
+                  content: finalContent,
+                  usage: {
+                    inputTokens,
+                    outputTokens,
+                    totalTokens: inputTokens + outputTokens,
+                  },
+                  cost: totalCost,
+                });
+              });
+            });
+          });
+        }),
         catch: (e): ProviderError => ({
           code: "CLAUDE_CODE_ERROR",
           message: e instanceof Error ? e.message : String(e),

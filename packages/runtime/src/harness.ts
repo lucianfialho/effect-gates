@@ -137,7 +137,8 @@ export interface HarnessConfig {
   readonly provider: {
     readonly chat: (
       messages: Message[],
-      tools?: Array<{ name: string; description: string; parameters: Record<string, unknown> }>
+      tools?: Array<{ name: string; description: string; parameters: Record<string, unknown> }>,
+      onEvent?: (event: HarnessStreamEvent) => void
     ) => Effect.Effect<{
       content: string;
       toolCalls?: Array<{ id: string; name: string; arguments: string }>;
@@ -286,9 +287,11 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
                 parameters: t.parameters as Record<string, unknown>,
               }));
 
+              const activeOnEvent = opts?.onEvent ?? sessionOnEvent;
+
               const llmCall = (msgs: Message[]) =>
                 Effect.mapError(
-                  config.provider.chat(msgs, toolDefs),
+                  config.provider.chat(msgs, toolDefs, activeOnEvent),
                   (e: HarnessError) => new Error(e.message)
                 ).pipe(
                   Effect.map((resp) => ({

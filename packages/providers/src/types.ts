@@ -43,9 +43,19 @@ export interface ProviderError {
   readonly message: string;
 }
 
+export type ProviderStreamEvent =
+  | { type: "tool_call";   id: string; name: string; args: string }
+  | { type: "tool_result"; id: string; name: string; output: string; isError: boolean }
+  | { type: "delta";       text: string };
+
 export interface Provider {
   readonly id: string;
-  readonly chat: (messages: Message[], tools?: Tool[]) => Effect.Effect<ChatResponse, ProviderError>;
+  readonly chat: (
+    messages: Message[],
+    tools?: Tool[],
+    /** Optional streaming callback — emits events as they arrive (tool calls, text deltas). */
+    onEvent?: (event: ProviderStreamEvent) => void
+  ) => Effect.Effect<ChatResponse, ProviderError>;
 }
 
 export interface StreamingChunk {
