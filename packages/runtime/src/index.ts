@@ -80,6 +80,7 @@ export type {
 } from "./harness.js";
 
 export { createHarnessRegistry } from "./harness-registry.js";
+export type { RegistryConfig } from "./harness-registry.js";
 
 export {
   makeAgentEvents,

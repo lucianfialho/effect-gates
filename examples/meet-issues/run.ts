@@ -1,36 +1,33 @@
 import { Effect } from "effect";
-import { createHarnessRegistry, makeBashTool, makeReadTool } from "@gatesai/runtime";
-import { makeAnthropicProvider } from "@gatesai/providers/anthropic";
-import { makeLocalSandbox } from "@gatesai/sandbox";
+import { createHarnessRegistry } from "@gatesai/runtime";
+import { makeAnthropicProvider } from "@gatesai/providers";
+import { loadConnectors } from "@gatesai/skills";
 
 import plannerHarness from "./harnesses/planner.js";
 import issueCreatorHarness from "./harnesses/issue-creator.js";
 
 const program = Effect.gen(function* () {
-  const sandbox = yield* makeLocalSandbox({ isolated: true });
-  const provider = makeAnthropicProvider({ apiKey: process.env["ANTHROPIC_API_KEY"]! });
+  // Load connector tools + docs from .gates/connectors/
+  // (gws, gh and any other connectors you have installed)
+  const connectors = yield* loadConnectors(".gates/connectors");
 
-  const tools = new Map([
-    ["bash", makeBashTool(sandbox)],
-    ["read", makeReadTool(sandbox)],
-  ]);
+  const registry = createHarnessRegistry({
+    provider: makeAnthropicProvider({ apiKey: process.env["ANTHROPIC_API_KEY"]! }),
+    tools: connectors.allTools(),
+    systemPromptSuffix: connectors.allDocs(),  // gws-guide.md, github-guide.md injected here
+  });
 
-  const config = {
-    provider: { chat: provider.chat.bind(provider) },
-    tools,
-    maxToolIterations: 15,
-  };
+  registry.register("planner", plannerHarness);
+  registry.register("issue-creator", issueCreatorHarness);
 
-  const registry = createHarnessRegistry();
-  registry.register("planner", plannerHarness, config);
-  registry.register("issue-creator", issueCreatorHarness, config);
-
-  const env = { GITHUB_TOKEN: process.env["GITHUB_TOKEN"]! };
-
-  return yield* registry.run("planner", {
-    transcript: process.argv[2] ?? "discuss implementing dark mode — assigned to @ana",
-    repo: process.argv[3] ?? "org/repo",
-  }, env);
+  return yield* registry.run(
+    "planner",
+    {
+      transcript: process.argv[2] ?? "discuss implementing dark mode — assigned to @ana",
+      repo: process.argv[3] ?? "org/repo",
+    },
+    { GITHUB_TOKEN: process.env["GITHUB_TOKEN"]! }
+  );
 });
 
 Effect.runPromise(program)
