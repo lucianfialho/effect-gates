@@ -9,34 +9,30 @@ export const description = "Investiga codebase e abre GitHub issues com melhoria
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
-const INVESTIGATOR_PROMPT = `You are a senior software engineer doing a systematic code review.
+const INVESTIGATOR_PROMPT = `You are a code reviewer. Explore the codebase with tools, then output findings as JSON.
 
-Use the available tools (read, glob, grep, bash) to explore the codebase:
-1. glob to discover source files and structure
-2. read key files (entry points, core modules, types)
-3. grep for patterns (error handling, TODOs, repeated code)
-4. bash for quick counts and stats
+TOOLS TO USE:
+- glob: find source files
+- read: read file contents (use offset= to paginate large files)
+- grep: search for patterns
+- bash: run quick commands (wc -l, grep -c, etc.)
 
-After investigation, output ONLY a JSON array of findings. No prose, no markdown fences.
+AFTER EXPLORING, output ONLY a JSON array. No text before or after. No markdown fences.
 
-Each finding must be:
-{
-  "title": "Concise issue title (max 80 chars)",
-  "body": "## Problem\n...\n\n## Why it matters\n...\n\n## Suggested fix\n...",
-  "severity": "low" | "medium" | "high",
-  "labels": ["bug" | "enhancement" | "tech-debt" | "security" | "performance" | "test"],
-  "file": "path/to/file.ts or null"
-}
+FORMAT (each item):
+{"title":"<max 80 chars>","body":"## Problem\\n<what>\\n\\n## Why\\n<impact>\\n\\n## Fix\\n<how>","severity":"low"|"medium"|"high","labels":["bug"|"enhancement"|"tech-debt"|"security"|"performance"|"test"],"file":"<path or null>"}
 
-Focus on:
-- Bugs and error handling gaps
-- Performance bottlenecks
-- Security issues (credential leaks, unvalidated input)
-- Missing tests for critical paths
-- Tech debt that slows the team
-- Poor abstractions or duplication
+VALID LAST MESSAGE:
+[{"title":"...","body":"...","severity":"high","labels":["bug"],"file":"src/foo.ts"}]
 
-Skip style preferences. Only concrete, actionable improvements.`;
+INVALID LAST MESSAGE (do NOT do this):
+"Let me check one more thing..."
+"Here are my findings:"
+Any prose or explanation.
+
+WHAT TO FIND: bugs, error handling gaps, security issues, missing tests, tech debt, performance problems.
+SKIP: style preferences, naming conventions, formatting.`;
+
 
 const PARAM_PARSER_PROMPT = `Extract code review parameters from the user's message.
 Respond with ONLY a JSON object — no prose, no markdown fences.
@@ -142,16 +138,36 @@ export default defineHarness<Payload>(
       // ── Investigate ───────────────────────────────────────────────────────
       const session = yield* init({ systemPrompt: INVESTIGATOR_PROMPT, onEvent });
 
-      const focusClause = focus ? `\n\nFocus particularly on: ${focus}` : "";
-      const investigationPrompt = `Investigate the codebase at: ${path}
+      const focusClause = focus ? `\nFocus: ${focus}` : "";
+      const investigationPrompt = `Investigate: ${path}${focusClause}
 
-Start broad (glob for structure), then dive into key files.
-Look for concrete improvements.${focusClause}
+Steps: glob files → read key files → grep patterns → form findings.
 
-Output a JSON array of findings (max ${maxIssues} items).`;
+IMPORTANT: Your final message must be ONLY a JSON array, nothing else:
+[{"title":"...","body":"...","severity":"high"|"medium"|"low","labels":[...],"file":"..."}]
+Max ${maxIssues} items. Start with [ and end with ]. No other text.`;
 
       const response = yield* session.prompt(investigationPrompt);
-      const findings = parseFindings(response.content);
+      let rawContent = response.content;
+
+      // If model didn't output JSON, use a separate formatter session (no tools)
+      // so the model can't keep investigating — it can only format.
+      if (!rawContent.trim().startsWith("[")) {
+        const formatter = yield* init({
+          // replaceTools: true → no tools in this session, model can only output text
+          tools: new Map(),
+          replaceTools: true,
+          systemPrompt: `You are a JSON formatter. You receive code review notes and output ONLY a JSON array.
+No prose. No markdown. Start with [ and end with ].
+Each item: {"title":"<80 chars>","body":"## Problem\\n...\\n\\n## Why\\n...\\n\\n## Fix\\n...","severity":"low"|"medium"|"high","labels":["bug"|"enhancement"|"tech-debt"|"security"|"performance"|"test"],"file":"<path or null>"}`,
+        });
+        const formatted = yield* formatter.prompt(
+          `Convert these code review notes to a JSON array of findings (max ${maxIssues}):\n\n${rawContent}`
+        );
+        rawContent = formatted.content;
+      }
+
+      const findings = parseFindings(rawContent);
 
       if (findings.length === 0) {
         return {

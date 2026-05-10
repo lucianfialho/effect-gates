@@ -40,8 +40,17 @@ export interface HarnessInitOptions {
    * Takes precedence over `role` if both are provided.
    */
   readonly systemPrompt?: string;
-  /** Additional tools to add on top of config.tools for this session. */
+  /**
+   * Additional tools to add on top of config.tools for this session (default).
+   * When `replaceTools: true`, this completely replaces config.tools instead.
+   */
   readonly tools?: Map<string, Tool>;
+  /**
+   * When true, `tools` replaces config.tools entirely instead of merging.
+   * Use `init({ tools: new Map(), replaceTools: true })` for a tool-free session
+   * (e.g. a formatter session that should only produce text).
+   */
+  readonly replaceTools?: boolean;
   /** Sandbox for session.shell() calls. */
   readonly sandbox?: { run: (cmd: string) => Effect.Effect<string, { code: string; message: string }> };
   /** Pre-populate the session history (e.g. loaded from a persisted store). */
@@ -226,11 +235,10 @@ export const createHarness = (config: HarnessConfig, registry?: HarnessRegistry)
       const historyRef = yield* Ref.make<Message[]>(options?.initialHistory ?? []);
       const sessionOnEvent = options?.onEvent;
 
-      // Merge config tools + per-session tools
-      const sessionTools: Map<string, Tool> = new Map([
-        ...(config.tools ?? new Map()),
-        ...(options?.tools ?? new Map()),
-      ]);
+      // Merge config tools + per-session tools (or replace if replaceTools: true)
+      const sessionTools: Map<string, Tool> = options?.replaceTools
+        ? (options.tools ?? new Map())
+        : new Map([...(config.tools ?? new Map()), ...(options?.tools ?? new Map())]);
 
       const sandbox = options?.sandbox;
 
