@@ -29,7 +29,7 @@ interface StreamLine {
     type: string;
     index?: number;
     content_block?: { type: string; id?: string; name?: string; input?: unknown };
-    delta?: { type: string; text?: string; partial_json?: string };
+    delta?: { type: string; text?: string; partial_json?: string; thinking?: string };
   };
   // final result line
   result?: string;
@@ -172,6 +172,16 @@ export const makeClaudeCodeProvider = (config: ClaudeCodeConfig = {}): Provider 
                   ev.delta.text
                 ) {
                   onEvent?.({ type: "delta", text: ev.delta.text });
+                  return;
+                }
+
+                // ── Thinking delta (extended thinking) ────────────────────
+                if (
+                  ev.type === "content_block_delta" &&
+                  ev.delta?.type === "thinking_delta" &&
+                  ev.delta.thinking
+                ) {
+                  onEvent?.({ type: "delta", text: ev.delta.thinking });
                 }
               });
 
