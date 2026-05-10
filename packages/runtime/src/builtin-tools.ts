@@ -51,10 +51,19 @@ Max ${MAX_READ_LINES} lines per call. If more lines exist, a continuation hint i
       const p = params["path"] as string;
       if (!p) return toolError("Missing required parameter: path");
 
+      // Guard: check if path is a directory before trying to read
+      const isDir = yield* Effect.result(sandbox.listDir(p));
+      if (isDir._tag === "Success") {
+        // It's a directory — return listing instead of failing
+        const entries = isDir.success.slice(0, 50).join("\n");
+        const hint = isDir.success.length > 50 ? `\n[${isDir.success.length - 50} more entries]` : "";
+        return toolResult(`Directory listing for ${p}:\n${entries}${hint}`, { path: p, isDirectory: true });
+      }
+
       const offset = Math.max(0, (params["offset"] as number | undefined) ?? 0);
       const limit  = Math.min(
         Math.max(1, (params["limit"] as number | undefined) ?? MAX_READ_LINES),
-        MAX_READ_LINES * 2  // hard cap: never more than 2x default regardless of param
+        MAX_READ_LINES * 2
       );
 
       const result = yield* Effect.result(sandbox.readFile(p));
