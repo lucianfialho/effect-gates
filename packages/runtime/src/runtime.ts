@@ -226,15 +226,11 @@ export const makeAgent = (config: AgentConfig): Effect.Effect<Agent> =>
         let compactionResult: CompactionResult | undefined;
 
         if (shouldCompact) {
-          const historyForCompaction = state.history as unknown as {
-            getTotalTokens(): Effect.Effect<number>;
-            buildContext(): Effect.Effect<Message[]>;
-            getActivePath(): Effect.Effect<Array<{ id: string; type: string }>>;
-            appendCompaction(input: { summary: string; firstKeptEntryId: string; tokensBefore: number }): Effect.Effect<string>
-          };
-          const compaction = runCompaction(historyForCompaction, {
+          // SessionHistory satisfies the structural type runCompaction expects —
+          // no cast needed; the provider error channel is mapped to CompactionError.
+          const compaction = runCompaction(state.history, {
             modelId: config.model,
-            provider: config.provider as unknown as { chat: (messages: Message[]) => Effect.Effect<{ content: string; usage: { totalTokens: number } }> },
+            provider: { chat: (messages: Message[]) => config.provider.chat(messages) },
             systemPrompt: config.systemPrompt,
             triggeredBy: triggeredBy ?? "budget",
           });
@@ -249,7 +245,7 @@ export const makeAgent = (config: AgentConfig): Effect.Effect<Agent> =>
         const allMessages = yield* state.history.buildContext();
         const session: Session = {
           id: sessionId,
-          createdAt: Date.now(),
+          createdAt: state.createdAt,
           messages: allMessages.map(m => ({
             id: m.id,
             role: m.role === "context" ? "system" : m.role,
@@ -307,7 +303,7 @@ export const makeAgent = (config: AgentConfig): Effect.Effect<Agent> =>
         const allMessages = yield* state.history.buildContext();
         const session: Session = {
           id: sessionId,
-          createdAt: Date.now(),
+          createdAt: state.createdAt,
           messages: allMessages.map(m => ({
             id: m.id,
             role: m.role === "context" ? "system" : m.role,

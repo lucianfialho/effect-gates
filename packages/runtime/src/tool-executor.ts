@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { Tool } from "./tools.js";
 import type { ToolCall, ToolResult } from "./tools.js";
+import { toolError } from "./tools.js";
 
 export type { ToolCall, ToolResult };
 
@@ -9,11 +10,6 @@ export interface ToolExecutor {
   readonly execute: (call: ToolCall) => Effect.Effect<ToolResult>;
   readonly executeAll: (calls: ToolCall[]) => Effect.Effect<ToolResult[]>;
 }
-
-const toolError = (message: string): ToolResult => ({
-  content: `Error: ${message}`,
-  isError: true,
-});
 
 export const makeToolExecutor = (tools: Tool[]): Effect.Effect<ToolExecutor> =>
   Effect.gen(function* () {
@@ -41,8 +37,3 @@ export const makeToolExecutor = (tools: Tool[]): Effect.Effect<ToolExecutor> =>
 
     return { tools: toolsMap, execute, executeAll };
   });
-
-export const toolResult = (content: string, metadata?: Record<string, unknown>): ToolResult => ({
-  content,
-  metadata,
-});

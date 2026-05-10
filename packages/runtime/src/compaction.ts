@@ -80,20 +80,20 @@ export const createCompactionTrigger = (
 
 export const runCompaction = (
   history: {
-    getTotalTokens(): Effect.Effect<number>;
-    buildContext(): Effect.Effect<Message[]>;
-    getActivePath(): Effect.Effect<Array<{ id: string; type: string }>>;
-    appendCompaction(input: { summary: string; firstKeptEntryId: string; tokensBefore: number }): Effect.Effect<string>;
+    getTotalTokens(): Effect.Effect<number, unknown>;
+    buildContext(): Effect.Effect<Message[], unknown>;
+    getActivePath(): Effect.Effect<Array<{ id: string; type: string }>, unknown>;
+    appendCompaction(input: { summary: string; firstKeptEntryId: string; tokensBefore: number }): Effect.Effect<string, unknown>;
   },
   options: {
     readonly modelId: string;
     readonly provider: {
-      readonly chat: (messages: Message[]) => Effect.Effect<{ content: string; usage: { totalTokens: number } }>;
+      readonly chat: (messages: Message[]) => Effect.Effect<{ content: string; usage: { totalTokens: number } }, unknown>;
     };
     readonly systemPrompt?: string;
     readonly triggeredBy?: CompactionResult["triggeredBy"];
   }
-): Effect.Effect<CompactionResult, CompactionError> =>
+): Effect.Effect<CompactionResult, CompactionError | unknown> =>
   Effect.gen(function* () {
     const tokensBefore = yield* history.getTotalTokens();
 
@@ -181,15 +181,11 @@ export const withCompaction = <A, E>(
     const shouldCompact = yield* triggerCheck;
 
     if (shouldCompact) {
-      yield* Effect.sync(() => {
-        Effect.runFork(
-          compaction.pipe(
-            Effect.catch((e: CompactionError) =>
-              Effect.sync(() => console.error("[compaction] failed:", e.message))
-            )
-          )
-        );
-      });
+      // Await compaction in the current fiber — errors are caught and logged, never swallowed
+      const compactionResult = yield* Effect.result(compaction);
+      if (compactionResult._tag === "Failure") {
+        console.error("[compaction] failed:", compactionResult.failure.message);
+      }
     }
 
     return result;

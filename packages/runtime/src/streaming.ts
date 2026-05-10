@@ -30,6 +30,7 @@ export const eventsToSSEStream = (
 export const parseSSELine = (line: string): { key: string; value: string } | null => {
   if (!line || line.startsWith(":")) return null;
   const [key, ...rest] = line.split(":");
+  if (!key) return null;
   return { key: key.trim(), value: rest.join(":").trim() };
 };
 
