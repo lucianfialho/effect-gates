@@ -18,21 +18,33 @@ export const dedupLines = (
 ): Effect.Effect<string[], ReadDedupError> =>
   Effect.succeed(lines).pipe(
     Effect.map((lines) => {
-      const seen = new Set<string>();
       const result: string[] = [];
-      const comparator = options.comparator ?? ((a, b) => a === b);
+      const comparator = options.comparator;
 
-      for (const line of lines) {
-        let isDuplicate = false;
-        for (const existing of seen) {
-          if (comparator(line, existing)) {
-            isDuplicate = true;
-            break;
+      if (!comparator) {
+        // Fast O(n) path: use Set.has for equality check
+        const seen = new Set<string>();
+        for (const line of lines) {
+          if (!seen.has(line)) {
+            seen.add(line);
+            result.push(line);
           }
         }
-        if (!isDuplicate) {
-          seen.add(line);
-          result.push(line);
+      } else {
+        // Custom comparator path: O(n²) is unavoidable but isolated here
+        const seen: string[] = [];
+        for (const line of lines) {
+          let isDuplicate = false;
+          for (const existing of seen) {
+            if (comparator(line, existing)) {
+              isDuplicate = true;
+              break;
+            }
+          }
+          if (!isDuplicate) {
+            seen.push(line);
+            result.push(line);
+          }
         }
       }
 

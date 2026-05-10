@@ -123,6 +123,9 @@ const discoverFiles = (rootPath: string, extensions = SUPPORTED_EXTENSIONS): str
 
 // ── Embeddings via OpenAI ─────────────────────────────────────────────────────
 
+const redactApiKey = (message: string, apiKey: string): string =>
+  apiKey.length > 0 ? message.replace(apiKey, "[REDACTED]") : message;
+
 const generateEmbeddings = async (
   texts: string[],
   apiKey: string,
@@ -133,15 +136,24 @@ const generateEmbeddings = async (
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const response = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ input: batch, model }),
-    });
+    try {
+      const response = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ input: batch, model }),
+      });
 
-    if (!response.ok) throw new Error(`OpenAI embeddings error: ${response.status}`);
-    const data = await response.json() as { data: Array<{ embedding: number[] }> };
-    results.push(...data.data.map((d) => d.embedding));
+      if (!response.ok) {
+        // Do NOT include headers or apiKey in the error message
+        throw new Error(`OpenAI embeddings error: HTTP ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json() as { data: Array<{ embedding: number[] }> };
+      results.push(...data.data.map((d) => d.embedding));
+    } catch (err) {
+      // Redact the API key from any error that may have captured it (e.g. via request details)
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(redactApiKey(message, apiKey));
+    }
   }
 
   return results;

@@ -114,8 +114,9 @@ export const getDirectoryMetadata = (
                 walkDir(fullPath, depth + 1);
               }
             }
-          } catch {
-            // Skip files we can't stat
+          } catch (statErr: unknown) {
+            // Log the error so callers are aware of inaccessible entries
+            console.warn(`[getDirectoryMetadata] Could not stat "${fullPath}": ${String(statErr)}`);
           }
         }
       };

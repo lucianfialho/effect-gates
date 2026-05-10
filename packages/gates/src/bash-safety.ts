@@ -47,8 +47,27 @@ export const bashSafety = (config: BashSafetyConfig = {}) => {
         }
       }
 
-      const firstWord = command.trim().split(/\s+/)[0];
-      if (!ALLOWED_COMMANDS.includes(firstWord) && !firstWord.startsWith("./")) {
+      // Reject shell metacharacters that can introduce chained commands
+      const CHAINING_PATTERN = /&&|\|\||;|\||\$\(|`/;
+      if (CHAINING_PATTERN.test(command)) {
+        return yield* Effect.fail(new BashSafetyError(
+          "CHAINING_FORBIDDEN",
+          `Command contains shell metacharacters that could chain additional commands`
+        ));
+      }
+
+      const firstWord = command.trim().split(/\s+/)[0] ?? "";
+
+      // Reject absolute-path executables (e.g. /usr/bin/curl) not in the allowlist
+      if (firstWord.startsWith("/")) {
+        const basename = firstWord.split("/").pop() ?? firstWord;
+        if (!ALLOWED_COMMANDS.includes(basename)) {
+          return yield* Effect.fail(new BashSafetyError(
+            "ABSOLUTE_PATH_FORBIDDEN",
+            `Absolute path executable "${firstWord}" is not allowed`
+          ));
+        }
+      } else if (!ALLOWED_COMMANDS.includes(firstWord) && !firstWord.startsWith("./")) {
         return yield* Effect.fail(new BashSafetyError(
           "UNKNOWN_COMMAND",
           `Command "${firstWord}" is not in the allowed list`
