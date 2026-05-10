@@ -35,9 +35,13 @@ export interface RegistryConfig {
 // ── Internal helpers ───────────────────────────────────────────────────────────
 
 const bridgeProvider = (provider: Provider): HarnessConfig["provider"] => ({
-  chat: (messages, toolDefs) =>
+  chat: (messages, toolDefs, onEvent) =>
     Effect.mapError(
-      provider.chat(messages as Parameters<Provider["chat"]>[0], toolDefs as Parameters<Provider["chat"]>[1]),
+      provider.chat(
+        messages as Parameters<Provider["chat"]>[0],
+        toolDefs as Parameters<Provider["chat"]>[1],
+        onEvent as Parameters<Provider["chat"]>[2],
+      ),
       (e: ProviderError) => ({ code: e.code, message: e.message }) satisfies HarnessError
     ) as ReturnType<HarnessConfig["provider"]["chat"]>,
 });
