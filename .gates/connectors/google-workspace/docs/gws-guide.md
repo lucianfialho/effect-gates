@@ -83,3 +83,24 @@ When user asks: "pega a transcrição do Q&A"
 → Present the transcript text
 
 NEVER say "não tenho acesso" or "OAuth required" — gws is already configured.
+
+## ❌ WRONG vs ✅ RIGHT — Drive export
+
+This is the most common failure. When you find a doc in Drive, you MUST call the export tool.
+Writing "Exportando agora:" as text does NOTHING — the user gets an empty promise.
+
+**WRONG** (do NOT do this):
+```
+[calls gws_drive: drive files list ...]  ← finds doc ID
+"Achei! O doc é 'Alinhamento CRO'. Exportando agora:"  ← announces, stops, exports nothing
+```
+
+**RIGHT** (always do this):
+```
+[calls gws_drive: drive files list ...]  ← finds doc ID = "abc123"
+[calls gws_drive: drive files export --params '{"fileId":"abc123","mimeType":"text/plain"}']  ← exports immediately
+"Aqui está o conteúdo da reunião: ..."  ← writes result AFTER export returned
+```
+
+The rule: after `drive files list` returns a fileId, the VERY NEXT action must be `drive files export` with that fileId.
+No text between them. No announcements. List → Export → Report.
