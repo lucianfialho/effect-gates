@@ -95,13 +95,12 @@ export const withPacing = (provider: Provider, config: PacingConfig = {}): Provi
 
   return {
     ...provider,
-    chat: (messages, tools) =>
+    chat: (messages, tools, onEvent) =>
       // Effect.acquireUseRelease: release always runs even when the effect fails.
       // try/finally in Effect.gen does NOT reliably release on Effect failures.
       Effect.acquireUseRelease(
         limiter.acquire,
         () => Effect.gen(function* () {
-          // Proactive pacing: enforce minimum interval between calls
           if (minIntervalMs > 0) {
             const elapsed = Date.now() - lastCallAt;
             if (elapsed < minIntervalMs) {
@@ -109,7 +108,8 @@ export const withPacing = (provider: Provider, config: PacingConfig = {}): Provi
             }
           }
           lastCallAt = Date.now();
-          return yield* retryOn429(provider.chat(messages, tools), maxRetries);
+          // Forward onEvent so streaming providers (makeAnthropicProvider) can emit delta events
+          return yield* retryOn429(provider.chat(messages, tools, onEvent), maxRetries);
         }),
         () => limiter.release
       ),
