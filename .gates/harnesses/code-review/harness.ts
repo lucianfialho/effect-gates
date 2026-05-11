@@ -9,29 +9,24 @@ export const description = "Investiga codebase e abre GitHub issues com melhoria
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
-const INVESTIGATOR_PROMPT = `You are a code reviewer. Explore the codebase with tools, then output findings as JSON.
+const INVESTIGATOR_PROMPT = `You are a code reviewer. Be EFFICIENT — use at most 8 tool calls, then output findings.
 
-TOOLS TO USE:
-- glob: find source files
-- read: read file contents (use offset= to paginate large files)
-- grep: search for patterns
-- bash: run quick commands (wc -l, grep -c, etc.)
+STRATEGY:
+1. bash: one command to list key source files (exclude node_modules, dist, .git)
+2. read: 4-6 most important files (entry points, security-sensitive, core logic)
+3. grep: one search for dangerous patterns if needed
+4. OUTPUT JSON — stop exploring after 8 tool calls
 
-AFTER EXPLORING, output ONLY a JSON array. No text before or after. No markdown fences.
+FORMAT — output ONLY this JSON array, starting with [ immediately:
+[{"title":"<max 80 chars>","body":"## Problem\\n...\\n\\n## Why\\n...\\n\\n## Fix\\n...","severity":"high"|"medium"|"low","labels":["bug"|"security"|"tech-debt"|"performance"|"test"],"file":"<path>","line":<number or null>,"snippet":"<2-3 code lines or null>"}]
 
-FORMAT (each item):
-{"title":"<max 80 chars>","body":"## Problem\\n<what>\\n\\n## Why\\n<impact>\\n\\n## Fix\\n<how>","severity":"low"|"medium"|"high","labels":["bug"|"enhancement"|"tech-debt"|"security"|"performance"|"test"],"file":"<path or null>","line":<line number or null>,"snippet":"<2-3 lines of actual code showing the issue, or null>"}
+RULES:
+- After 8 tool calls: output findings immediately, do NOT continue exploring
+- Start JSON with [ on the very first character — no prose before or after
+- 3-5 findings maximum
+- "Let me check one more thing" is WRONG — output JSON instead
+- Find: bugs, security issues, unhandled errors, dangerous patterns`;
 
-VALID LAST MESSAGE:
-[{"title":"...","body":"...","severity":"high","labels":["bug"],"file":"src/foo.ts","line":42,"snippet":"const x = eval(input)"}]
-
-INVALID LAST MESSAGE (do NOT do this):
-"Let me check one more thing..."
-"Here are my findings:"
-Any prose or explanation.
-
-WHAT TO FIND: bugs, error handling gaps, security issues, missing tests, tech debt, performance problems.
-SKIP: style preferences, naming conventions, formatting.`;
 
 
 const PARAM_PARSER_PROMPT = `Extract code review parameters from the user's message.
@@ -144,14 +139,10 @@ export default defineHarness<Payload>(
       // ── Investigate ───────────────────────────────────────────────────────
       const session = yield* init({ systemPrompt: INVESTIGATOR_PROMPT, onEvent });
 
-      const focusClause = focus ? `\nFocus: ${focus}` : "";
-      const investigationPrompt = `Investigate: ${path}${focusClause}
-
-Steps: glob files → read key files → grep patterns → form findings.
-
-IMPORTANT: Your final message must be ONLY a JSON array, nothing else:
-[{"title":"...","body":"...","severity":"high"|"medium"|"low","labels":[...],"file":"..."}]
-Max ${maxIssues} items. Start with [ and end with ]. No other text.`;
+      const focusClause = focus ? ` Focus on: ${focus}.` : "";
+      const investigationPrompt = `Review: ${path}${focusClause}
+Tool call budget: 8 maximum. After 8 calls, output JSON immediately.
+Output ${maxIssues} findings max as a JSON array starting with [.`;
 
       const response = yield* session.prompt(investigationPrompt);
       let rawContent = response.content;
