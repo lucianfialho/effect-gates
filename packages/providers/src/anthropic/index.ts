@@ -234,8 +234,8 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
                   const idx = ev.index as number;
                   const buf2 = toolBufs.get(idx);
                   if (buf2) {
-                    // Emit for UI streaming AND accumulate for agent loop execution
-                    onEvent({ type: "tool_call", id: buf2.id, name: buf2.name, args: buf2.json });
+                    // Accumulate for agent loop — runAgentLoop will emit its own tool_call event
+                    // Don't emit here to avoid duplicates (streaming + agent loop both emitting)
                     completedToolCalls.push({ id: buf2.id, name: buf2.name, arguments: buf2.json });
                     toolBufs.delete(idx);
                   }
