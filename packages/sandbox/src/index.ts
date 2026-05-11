@@ -270,9 +270,9 @@ export const makeLocalSandbox = (config?: SandboxConfig): Effect.Effect<Sandbox>
         await fs.promises.writeFile(resolved, content, "utf-8");
       },
       catch: (e) => {
-        const err = e as { code?: string };
+        const err = e as { code?: string; message?: string };
         if (err.code === "EACCES") return SandboxError.PermissionDenied(filePath);
-        throw e;
+        return SandboxError.CommandFailed(filePath, err.message ?? String(e));
       },
     });
   };
@@ -300,10 +300,12 @@ export const makeLocalSandbox = (config?: SandboxConfig): Effect.Effect<Sandbox>
     return Effect.tryPromise({
       try: async () => fs.promises.readdir(resolved),
       catch: (e) => {
-        const err = e as { code?: string };
-        if (err.code === "ENOENT") return SandboxError.FileNotFound(filePath);
-        if (err.code === "EACCES") return SandboxError.PermissionDenied(filePath);
-        throw e;
+        const err = e as { code?: string; message?: string };
+        if (err.code === "ENOENT")   return SandboxError.FileNotFound(filePath);
+        if (err.code === "EACCES")   return SandboxError.PermissionDenied(filePath);
+        if (err.code === "ENOTDIR")  return SandboxError.PermissionDenied(`${filePath} is not a directory`);
+        // Never throw inside Effect.tryPromise.catch — return a typed error instead
+        return SandboxError.CommandFailed(filePath, err.message ?? String(e));
       },
     });
   };
