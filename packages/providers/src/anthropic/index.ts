@@ -183,6 +183,7 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
             const dec = new TextDecoder();
             let buf = "";
             const toolBufs = new Map<number, { id: string; name: string; json: string }>();
+            const completedToolCalls: ToolCall[] = [];
             let textContent = "";
             let thinkingContent = "";
             let finalUsage = { input_tokens: 0, output_tokens: 0 };
@@ -233,7 +234,9 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
                   const idx = ev.index as number;
                   const buf2 = toolBufs.get(idx);
                   if (buf2) {
+                    // Emit for UI streaming AND accumulate for agent loop execution
                     onEvent({ type: "tool_call", id: buf2.id, name: buf2.name, args: buf2.json });
+                    completedToolCalls.push({ id: buf2.id, name: buf2.name, arguments: buf2.json });
                     toolBufs.delete(idx);
                   }
                 }
@@ -261,15 +264,10 @@ export const makeAnthropicProvider = (config: AnthropicConfig): Provider => {
             const prices = ANTHROPIC_PRICES[Object.keys(ANTHROPIC_PRICES).find(k => model.startsWith(k)) ?? ""]
               ?? { input: 0.000003, output: 0.000015 };
 
-            const toolCallsFromStream: ToolCall[] | undefined = toolBufs.size === 0
-              ? (stopReason === "tool_use"
-                  ? [] // tool calls were already emitted via onEvent
-                  : undefined)
-              : undefined;
-
             return {
               content: textContent,
-              toolCalls: toolCallsFromStream,
+              // Return accumulated tool calls so runAgentLoop can execute them
+              toolCalls: completedToolCalls.length > 0 ? completedToolCalls : undefined,
               usage: {
                 inputTokens: finalUsage.input_tokens,
                 outputTokens: finalUsage.output_tokens,
